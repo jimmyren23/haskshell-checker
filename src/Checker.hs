@@ -3,7 +3,7 @@ module Checker where
 import Parsing
 import ShellSyntax
 
--- Quoting
+{- Quoting -}
 
 -- | Check if a variable is quoted
 checkUnquotedVar :: Var -> Either String Var
@@ -27,7 +27,7 @@ checkVarInSingleQuotes = undefined
 checkVarInterpolation :: Value -> Either String Value
 checkVarInterpolation = undefined
 
--- Conditionals
+{- Conditionals -}
 
 -- | if the variable assingment is missing spaces, then it will return an error message.
 checkMissingSpaces :: Parser BashCommand -> Maybe String
@@ -37,7 +37,7 @@ checkMissingSpaces = undefined
 checkLiteralVacuousTrue :: Expression -> Either String Expression
 checkLiteralVacuousTrue = undefined
 
--- | | Checks if Quoted regex in =~
+-- | Checks if Quoted regex in =~
 checkQuotedRegex :: Value -> Either String Value
 checkQuotedRegex = undefined
 
@@ -104,18 +104,78 @@ checkSingleFalse = undefined
 checkParenthesisInsteadOfTest :: BashCommand -> Either String BashCommand
 checkParenthesisInsteadOfTest = undefined
 
--- Style
+{- Style -}
+
 -- # Use $() instead
 checkCommandSubstitution :: BashCommand -> Either String BashCommand
 checkCommandSubstitution = undefined
 
 -- # Use standard $((..)) instead of old $[]
+checkArithmeticParentheses:: BashCommand -> Either String BashCommand
+checkArithmeticParentheses = undefined
 
 --  # Don't use $ on variables in $((..))
+checkNoVarInArithemetic :: BashCommand -> Either String BashCommand
+checkNoVarInArithemetic = undefined
+
 -- # Useless use of echo
+checkEchoUsage :: BashCommand -> Either String BashCommand
+checkEchoUsage = undefined
+
 -- # Useless use of cat
+checkCatUsage :: BashCommand -> Either String BashCommand
+checkCatUsage = undefined
 
 -- Data and typing errors
 -- # Comparing numbers as strings
 
--- Robustness
+-- # Assigning arrays to strings
+checkArrayAssignAsString :: BashCommand -> Either String BashCommand
+checkArrayAssignAsString = undefined -- $@ -> Used to access bash command line args array
+
+-- # Referencing arrays as strings
+checkArrayReferenceInString :: BashCommand -> Either String BashCommand
+checkArrayReferenceInString = undefined
+
+-- # Associative arrays without index
+checkAssociativeArraysIndex :: BashCommand -> Either String BashCommand
+checkAssociativeArraysIndex = undefined
+
+-- # Concatenating strings and arrays
+checkStringArrayConcatenation :: BashCommand -> Either String BashCommand
+checkStringArrayConcatenation = undefined
+
+-- # Comparing numbers as strings
+checkStringNumericalComparison :: BashCommand -> Either String BashCommand
+checkStringNumericalComparison = undefined -- $# retrives # of params passed in, [str] > [str] 
+
+-- # Unused lowercase variables -> user intends to use it but does not do so correctly using $
+checkUnusedVar :: BashCommand -> Either String Command
+checkUnusedVar = undefined
+
+-- # Unassigned lowercase variables
+checkUnassignedVar :: BashCommand -> Either String Command
+checkUnassignedVar = undefined
+
+-- # Assignments in subshells
+checkAssignmentInSubshell :: BashCommand -> Either String Command
+checkAssignmentInSubshell = undefined
+
+-- # Piping to commands that don't read
+checkPipingRead :: BashCommand -> Either String Command
+checkPipingRead = undefined
+
+-- # Mismatches in printf argument count
+checkPrintArgCount :: BashCommand -> Either String Command
+checkPrintArgCount = undefined
+
+-- # Lost word boundaries in array eval
+checkArrayEval :: BashCommand -> Either String Command
+checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
+
+-- # Using array value as key
+checkArrayValueUsedAsKey :: BashCommand -> Either String Command
+checkArrayValueUsedAsKey = undefined
+
+
+{- Robustness -}
