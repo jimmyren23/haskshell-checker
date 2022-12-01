@@ -1,8 +1,8 @@
 module Parsing where
 
 import Control.Applicative (Alternative (..))
-import ShellSyntax
 import Data.Map
+import ShellSyntax
 
 newtype Parser a = P {doParse :: String -> Maybe (a, String)}
 
