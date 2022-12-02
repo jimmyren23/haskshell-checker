@@ -5,5 +5,6 @@ import Suggestions
 import System.Environment (getArgs)
 
 main = do
-  fileName <- head getArgs
-  parseFromFile bashFileP fileName
+  args <- getArgs
+  let filename = head args
+   in parseFromFile bashFileP filename

@@ -38,14 +38,13 @@ get = P $ \s -> case s of
 -- combinator library doesn't support descriptive parse errors, but we
 -- give it a type similar to other Parsing libraries.
 parse :: Parser a -> String -> Either ParseResult a
-parse parser str = 
+parse parser str =
   case doParse parser str of
     Nothing -> Left "No parses"
     Just (a, m) ->
       case m of
         "" -> Right a -- empty quote returned means no error
         _ -> Left m -- m stores feedback from checker if there was an error
-
 
 -- | Return the next character if it satisfies the given predicate
 satisfy :: (Char -> Bool) -> Parser Char
