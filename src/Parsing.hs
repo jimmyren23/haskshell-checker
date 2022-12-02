@@ -42,15 +42,15 @@ assignP :: Parser (BashCommand, History)
 assignP = undefined
 
 -- | Parses a line of input for a conditional statement
-ifP :: Parser (BashCommand, History)
-ifP = undefined
+conditionalP :: Parser (BashCommand, History)
+conditionalP = undefined
 
 -- | Parses a line of input for for exec commands and arguments
 execCommandP :: Parser (BashCommand, History)
 execCommandP = undefined
 
 bashCommandP :: Parser (BashCommand, History)
-bashCommandP = assignP <|> ifP <|> execCommandP
+bashCommandP = assignP <|> conditionalP <|> execCommandP
 
 -- | Parses a File using the parser and outputs the warnings
 bashFileP :: Parser (Block, History)

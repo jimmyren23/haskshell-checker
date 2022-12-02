@@ -26,7 +26,7 @@ filter f p = P $ \s -> do
 ---------------------------------------------------------------
 ---------------------------------------------------------------
 
-type ParseError = String
+type ParseResult = String
 
 -- | Return the next character from the input
 get :: Parser Char
@@ -37,10 +37,15 @@ get = P $ \s -> case s of
 -- | Use a parser for a particular string. Note that this parser
 -- combinator library doesn't support descriptive parse errors, but we
 -- give it a type similar to other Parsing libraries.
-parse :: Parser a -> String -> Either ParseError a
-parse parser str = case doParse parser str of
-  Nothing -> Left "No parses"
-  Just (a, _) -> Right a
+parse :: Parser a -> String -> Either ParseResult a
+parse parser str = 
+  case doParse parser str of
+    Nothing -> Left "No parses"
+    Just (a, m) ->
+      case m of
+        "" -> Right a -- empty quote returned means no error
+        _ -> Left m -- m stores feedback from checker if there was an error
+
 
 -- | Return the next character if it satisfies the given predicate
 satisfy :: (Char -> Bool) -> Parser Char

@@ -21,12 +21,6 @@ checkEscapeQuote = undefined
 checkVarInSingleQuotes :: Value -> Either String Value
 checkVarInSingleQuotes = undefined
 
--- single quote vs. double quote when used with $ for interpolation (double quote -> interpolation)
-
--- | Checks that the variable being interpolated has been defined previously
-checkVarInterpolation :: Value -> Either String Value
-checkVarInterpolation = undefined
-
 {- Conditionals -}
 
 -- | if the variable assingment is missing spaces, then it will return an error message.
