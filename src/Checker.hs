@@ -5,26 +5,30 @@ import ShellSyntax
 
 {- Quoting -}
 
--- | Check if a variable is quoted
+-- | Checks if a variable is quoted
 checkUnquotedVar :: Var -> Either String Var
 checkUnquotedVar = undefined
 
+-- | Checks if tilde is used in quotes
 checkQuotedTildeExpansion :: Value -> Either String Value
 checkQuotedTildeExpansion = undefined
 
+-- | Checks if single quotes are closed by apostrophe
 checkSingleQuoteApostrophe :: Value -> Either String Value
 checkSingleQuoteApostrophe = undefined
 
+-- | Checks if apostrophe is escaped inside sinlge quotes
 checkEscapeQuote :: Value -> Either String Value
 checkEscapeQuote = undefined
 
+-- | Checks if variables are used in single quotes
 checkVarInSingleQuotes :: Value -> Either String Value
 checkVarInSingleQuotes = undefined
 
 {- Conditionals -}
 
--- | if the variable assingment is missing spaces, then it will return an error message.
-checkMissingSpaces :: Parser BashCommand -> Maybe String
+-- | Checks if equal-to is missing spaces around itself
+checkMissingSpaces :: Expression -> Maybe String
 checkMissingSpaces = undefined
 
 -- | Checks if Expression to see if conditional is implicitly always true through mislabeled expression
@@ -32,7 +36,7 @@ checkLiteralVacuousTrue :: Expression -> Either String Expression
 checkLiteralVacuousTrue = undefined
 
 -- | Checks if Quoted regex in =~
-checkQuotedRegex :: Value -> Either String Value
+checkQuotedRegex :: Expression -> Either String Value
 checkQuotedRegex = undefined
 
 -- | Checks if unsupported operators are used
@@ -41,108 +45,108 @@ checkUnsupportedOperators :: Expression -> Either String Expression
 checkUnsupportedOperators = undefined
 
 -- | Check if strings and numbers are being compared
-checkNumericalStrComparison :: BashCommand -> Either String BashCommand
+checkNumericalStrComparison :: Expression -> Either String Expression
 checkNumericalStrComparison = undefined
 
 -- | Checks that && is not used inside [] statement
 checkAnd :: Expression -> Either String Expression
 checkAnd = undefined
 
--- Using test operators in ((..))
+-- | Checks if test operators are used in ((..))
 checkTestOperators :: Expression -> Either String Expression
 checkTestOperators = undefined
 
--- Accidental backgrounding and piping
+-- | Checks if piping and backgrounding are part of condition
 checkBackgroundingAndPiping :: Expression -> Either String Expression
 checkBackgroundingAndPiping = undefined
 
 {- Freq Misused Commands -}
---  # Redirecting sudo
+-- | Checks if sudo is being redirected
 checkRedirectInSudo :: BashCommand -> Either String BashCommand
 checkRedirectInSudo = undefined
 
--- # Defining aliases with arguments
+-- | Checks if aliases are defined with arguments
 checkArgumentsInAliases :: BashCommand -> Either String BashCommand
 checkArgumentsInAliases = undefined
 
--- # Redirections in find
+-- | Checks if redirections are in find
 checkRedirectionInFind :: BashCommand -> Either String BashCommand
 checkRedirectionInFind = undefined
 
 {- Beginner Mistakes -}
---  # Spaces around = in assignments
+-- | Checks if extra spaces are used in assignments
 checkSpacesInAssignments :: BashCommand -> Either String BashCommand
 checkSpacesInAssignments = undefined
 
---  # $ in assignments
+-- | Checks if dollar sign is present in assignments
 checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
 checkDollarSignInAssignments = undefined
 
---  # Comma separated arrays
+-- | Cheecks if elements in array are separated by commas
 checkCommaSeparatedArrays :: BashCommand -> Either String BashCommand
 checkCommaSeparatedArrays = undefined
 
--- # Using 'else if'
+-- | Checks if 'else if' is used
 checkElseIf :: BashCommand -> Either String BashCommand
 checkElseIf = undefined
 
--- # Using function before definition
+-- | Checks if function has not been defined previously
 checkUndefinedFunction :: BashCommand -> Either String BashCommand
 checkUndefinedFunction = undefined
 
--- # 'false' being true
+-- | Checks if only false is present conditional expression
 checkSingleFalse :: BashCommand -> Either String BashCommand
 checkSingleFalse = undefined
 
--- # Using (..) instead of test
+-- | Checks if (...) is used instead of test operator
 checkParenthesisInsteadOfTest :: BashCommand -> Either String BashCommand
 checkParenthesisInsteadOfTest = undefined
 
 {- Style -}
 
--- # Use $() instead
+-- | Checks if `` is used to interpolate instead of $()
 checkCommandSubstitution :: BashCommand -> Either String BashCommand
 checkCommandSubstitution = undefined
 
--- # Use standard $((..)) instead of old $[]
+-- | Checks if outdated $[] is used instead of standard $((..))
 checkArithmeticParentheses :: BashCommand -> Either String BashCommand
 checkArithmeticParentheses = undefined
 
---  # Don't use $ on variables in $((..))
+-- | Checks if $ is used for variables in $((..))
 checkNoVarInArithemetic :: BashCommand -> Either String BashCommand
 checkNoVarInArithemetic = undefined
 
--- # Useless use of echo
+-- | Checks if echo is unnecessarily used
 checkEchoUsage :: BashCommand -> Either String BashCommand
 checkEchoUsage = undefined
 
--- # Useless use of cat
+-- | Checks if cat is unnecessarily used
 checkCatUsage :: BashCommand -> Either String BashCommand
 checkCatUsage = undefined
 
 {- Data and typing errors -}
 
--- # Assigning arrays to strings
+-- | Checks if arrays are assigned to strings
 checkArrayAssignAsString :: BashCommand -> Either String BashCommand
 checkArrayAssignAsString = undefined -- \$@ -> Used to access bash command line args array
 
--- # Referencing arrays as strings
+-- | Checks if arrays are referencd as strings
 checkArrayReferenceInString :: BashCommand -> Either String BashCommand
 checkArrayReferenceInString = undefined
 
--- # Concatenating strings and arrays
+-- | Checks if arrays and strings are being concatenated
 checkStringArrayConcatenation :: BashCommand -> Either String BashCommand
 checkStringArrayConcatenation = undefined
 
--- # Comparing numbers as strings
+-- | Checks if numbers are being compared as strings
 checkStringNumericalComparison :: BashCommand -> Either String BashCommand
 checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
--- # Unused lowercase variables -> user intends to use it but does not do so correctly using $
+-- | Checks if variables are being attempted to be used incorrectly - user intends to use it but does not do so correctly using $
 checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
--- # Unassigned lowercase variables
+-- | Checks if undefined variables are being used
 checkUnassignedVar :: BashCommand -> Either String Command
 checkUnassignedVar = undefined
 
@@ -150,23 +154,27 @@ checkUnassignedVar = undefined
 -- checkAssignmentInSubshell :: BashCommand -> Either String Command
 -- checkAssignmentInSubshell = undefined
 
--- # Piping to commands that don't read
+-- | Checks if commands that don't read are being piped
 checkPipingRead :: BashCommand -> Either String Command
 checkPipingRead = undefined
 
--- # Mismatches in printf argument count
+-- | Checks if argument count doesn't match in printf
 checkPrintArgCount :: BashCommand -> Either String Command
 checkPrintArgCount = undefined
 
--- # Lost word boundaries in array eval
--- checkArrayEval :: BashCommand -> Either String Command
--- checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
+-- | Checks if word boundaries are lost in array eval
+checkArrayEval :: BashCommand -> Either String Command
+checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
 
--- # Using array value as key
--- checkArrayValueUsedAsKey :: BashCommand -> Either String Command
--- checkArrayValueUsedAsKey = undefined
+-- TODO: Need to define for-loop type first
+-- | Checks if array value is being used as a key
+-- for i in "${x[@]}"; 
+--    do ${x[$i]}
+-- done
+checkArrayValueUsedAsKey :: BashCommand -> Either String Command
+checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
--- # Variables in printf format
+-- | Checks if vaiables are used in printf
 checkNoVariablesInPrintf :: BashCommand -> Either String Command
 checkNoVariablesInPrintf = undefined

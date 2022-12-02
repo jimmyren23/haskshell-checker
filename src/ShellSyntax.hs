@@ -3,6 +3,8 @@ module ShellSyntax where
 import Text.PrettyPrint (Doc, (<+>))
 import Text.PrettyPrint qualified as PP
 
+-- TODO: Define intermediate types (inbetween raw input and fully-parsed the input)?
+-- TODO: Account for for-loops too?
 data BashCommand
   = ExecCommand Command [Arg]
   | Conditional Expression Block Block

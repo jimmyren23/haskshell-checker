@@ -22,7 +22,7 @@ test_quoting =
             checkQuotedTildeExpansion
             "\"~/5520 file.txt\""
           ~= Left
-            "Warning: Tilde does not expand inside quote"
+            "Warning: Tilde does not expand inside quotes."
             checkQuotedTildeExpansion
             "~/5520 file.txt"
           ~= Right
@@ -30,7 +30,7 @@ test_quoting =
             checkSingleQuoteApostrophe
             "\'it's not right\'"
           ~= Left
-            "Error: Cannot parse the string. Apostrophe is terminating the single quoted string"
+            "Error: Cannot parse the string, apostrophe is terminating the single quoted string."
             checkSingleQuoteApostrophe
             "\'it'\''s a string\'"
           ~= Right
@@ -38,7 +38,7 @@ test_quoting =
             checkEscapeQuote
             "\'it\'s a string\'"
           ~= Left
-            "Error:  Cannot parse the string. Escaping apostrophe is not done properly."
+            "Error:  Cannot parse the string, escaping apostrophe is not done properly."
             checkVarInSingleQuotes
             "\'$1\'"
           ~= Left "Info: Expressions do not expand inside single quotes."
@@ -47,72 +47,62 @@ test_quoting =
 test_conditional =
   "conditional"
     ~: TestList
-      [ checkMissingSpaces Right Conditional "if [\"$foo\"==0]\n" ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
+      [ checkMissingSpaces Right Expression "if [\"$foo\"==0]\n"
           ~= Left
-            "Error: Missing spaces around comparison operator"
+            "Error: Missing spaces around comparison operator."
             -- TODO: Decide on how to store conditionals (when to split up conditions & blocks)
             checkMissingSpaces
             Right
-            Conditional
+            Expression
             "if [\"$foo\" == 0]\n"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Right
-            Conditional
+            Expression 
             "if [\"$foo\" == 0]\n"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
             checkLiteralVacuousTrue
             Right
-            Conditional
+            Expression
             "if [-n \"$foo \"]\n"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Left
-            "Warning: Condition always evaluates to true"
+            "Warning: Condition always evaluates to true."
             checkLiteralVacuousTrue
             Right
-            Conditional
+            Expression
             "if [-n \"$foo\"]\n"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Right
-            Conditional
+            Expression
             "if [-n \"$foo\"]\n"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
             checkQuotedRegex
             Right
-            Conditional
+            Expression
             "if [[ $foo =~ "
             fo
           + " ]]"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Left
             "Warning: Regex is quoted"
             checkQuotedRegex
             Right
-            Conditional
+            Expression 
             "if [$1 -eq \"hi\"]\n"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Left
-            "Error: Invalid use of -eq. Use = to compare strings"
+            "Error: Invalid use of -eq, use = to compare strings."
             checkAnd
             Right
-            Conditional
+            Expression 
             "if [$a && $b]"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Left
-            "Error: && inside ((..)). Use [..] && [..] instead"
+            "Error: && inside ((..)), use [..] && [..] instead."
             checkTestOperators
             Right
-            Conditional
+            Expression 
             "if [ ((2 -gt 1)) ]"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Left
-            "Error: test oprators are not valid inside ((..))"
+            "Error: Test oprators are not valid inside ((..))."
             checkBackgroundingAndPiping
             Right
-            Conditional
+            Expression 
             "if [ [ x ] & [ y ] | [ z ] ]"
-            ["then echo \"true\"\n", "else echo \"false\"\n", "fi"]
           ~= Left
-            "Unintended backgrounding and piping"
+            "Error: Unintended use of backgrounding and piping."
       ]
 
 test_freq_misused =
@@ -120,13 +110,13 @@ test_freq_misused =
     ~: TestList
       [ checkRedirectInSudo Right ExecCommand "sudo echo \"hello\" > file.txt"
           ~= Left
-            "Error: Redirecting sudo",
+            "Error: Redirecting sudo.",
         checkArgumentsInAliases Right ExecCommand "alias ls='ls -l'"
           ~= Left
-            "Error: Arguments in aliases",
+            "Error: Arguments in aliases.",
         checkRedirectionInFind Right ExecCommand "find . -name \"*.txt\" > file.txt"
           ~= Left
-            "Error: Redirecting find"
+            "Error: Redirecting find."
       ]
 
 test_beginner_mistakes =
@@ -160,7 +150,7 @@ test_style =
             "Warning: Instead of backticks, use $().",
         checkArithmeticParentheses Right ExecCommand "echo $[ 1 + 1 ]"
           ~= Left
-            "Warning: Instead of $[...], use the new standard $((...))",
+            "Warning: Instead of $[...], use the new standard $((...)).",
         checkNoVarInArithemetic Right ExecCommand "echo $((NUM + 1))"
           ~= Left
             "Error: Use $[] instead of $().",
@@ -177,13 +167,13 @@ test_data_type =
     ~: TestList
       [ checkArrayReferenceInString Right ExecCommand "foo=(bar baz); echo $foo"
           ~= Left
-            "Error: Try to use an array as a string",
+            "Error: Try to use an array as a string.",
         checkStringArrayConcatenation Right ExecCommand "foo=(bar baz); z=\"hi\"; y=z+foo"
           ~= Left
-            "Warning: Trying to concatenate an array with a string",
+            "Warning: Trying to concatenate an array with a string.",
         checkStringNumericalComparison Right ExecCommand "if [\"$foo\" -eq 0]\nthen echo \"true\"\n"
           ~= Left
-            "Error: Trying to compare a string with a number",
+            "Error: Trying to compare a string with a number.",
         checkUnusedVar Right ExecCommand "foo=bar; echo \"hi\" foo"
           ~= Left
             "Warning: Unused variable referred to in command.",
@@ -195,7 +185,10 @@ test_data_type =
             "Error: Piping into a command that does not intake input.",
         checkPrintArgCount Right ExecCommand "printf \'%s: %s\' foo"
           ~= Left
-            "Error: An inccorect number of arguments were given to the command"
+            "Error: An inccorect number of arguments were given to the command."
+        checkArrayEval Right ExecCommand "eval \"${array[@]}\""
+          ~= Left
+            "Error: Word boundaries lost when attempting to read array."
       ]
 
 test_robustness =
@@ -203,5 +196,5 @@ test_robustness =
     ~: TestList
       [ checkNoVariablesInPrintf Right ExecCommand "printf $myvar"
           ~= Left
-            "Error: No variables should be used in printf"
+            "Error: No variables should be used in printf."
       ]
