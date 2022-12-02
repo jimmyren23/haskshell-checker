@@ -1,6 +1,9 @@
 module Main where
 
-import Lib
+import Parsing
+import Suggestions
+import System.Environment (getArgs)
 
-main :: IO ()
-main = putStrLn someFunc
+main = do
+  fileName <- head getArgs
+  parseFromFile bashFileP fileName

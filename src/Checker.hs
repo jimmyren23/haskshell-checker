@@ -111,7 +111,7 @@ checkCommandSubstitution :: BashCommand -> Either String BashCommand
 checkCommandSubstitution = undefined
 
 -- # Use standard $((..)) instead of old $[]
-checkArithmeticParentheses:: BashCommand -> Either String BashCommand
+checkArithmeticParentheses :: BashCommand -> Either String BashCommand
 checkArithmeticParentheses = undefined
 
 --  # Don't use $ on variables in $((..))
@@ -126,12 +126,11 @@ checkEchoUsage = undefined
 checkCatUsage :: BashCommand -> Either String BashCommand
 checkCatUsage = undefined
 
--- Data and typing errors
--- # Comparing numbers as strings
+{- Data and typing errors -}
 
 -- # Assigning arrays to strings
 checkArrayAssignAsString :: BashCommand -> Either String BashCommand
-checkArrayAssignAsString = undefined -- $@ -> Used to access bash command line args array
+checkArrayAssignAsString = undefined -- \$@ -> Used to access bash command line args array
 
 -- # Referencing arrays as strings
 checkArrayReferenceInString :: BashCommand -> Either String BashCommand
@@ -147,7 +146,7 @@ checkStringArrayConcatenation = undefined
 
 -- # Comparing numbers as strings
 checkStringNumericalComparison :: BashCommand -> Either String BashCommand
-checkStringNumericalComparison = undefined -- $# retrives # of params passed in, [str] > [str] 
+checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
 -- # Unused lowercase variables -> user intends to use it but does not do so correctly using $
 checkUnusedVar :: BashCommand -> Either String Command
@@ -177,5 +176,7 @@ checkArrayEval = undefined -- [@] -> treats each element as a separate command b
 checkArrayValueUsedAsKey :: BashCommand -> Either String Command
 checkArrayValueUsedAsKey = undefined
 
-
 {- Robustness -}
+-- # Variables in printf format
+checkNoVariablesInPrintf :: BashCommand -> Either String Command
+checkNoVariablesInPrintf = undefined

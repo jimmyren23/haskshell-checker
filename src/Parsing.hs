@@ -51,3 +51,7 @@ execCommandP = undefined
 
 bashCommandP :: Parser (BashCommand, History)
 bashCommandP = assignP <|> ifP <|> execCommandP
+
+-- | Parses a File using the parser and outputs the warnings
+bashFileP :: Parser (Block, History)
+bashFileP = undefined
