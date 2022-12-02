@@ -56,7 +56,7 @@ checkTestOperators = undefined
 checkBackgroundingAndPiping :: Expression -> Either String Expression
 checkBackgroundingAndPiping = undefined
 
--- Freq Misused Commands
+{- Freq Misused Commands -}
 --  # Redirecting sudo
 checkRedirectInSudo :: BashCommand -> Either String BashCommand
 checkRedirectInSudo = undefined
@@ -69,7 +69,7 @@ checkArgumentsInAliases = undefined
 checkRedirectionInFind :: BashCommand -> Either String BashCommand
 checkRedirectionInFind = undefined
 
--- Beginner Mistakes
+{- Beginner Mistakes -}
 --  # Spaces around = in assignments
 checkSpacesInAssignments :: BashCommand -> Either String BashCommand
 checkSpacesInAssignments = undefined
@@ -130,10 +130,6 @@ checkArrayAssignAsString = undefined -- \$@ -> Used to access bash command line 
 checkArrayReferenceInString :: BashCommand -> Either String BashCommand
 checkArrayReferenceInString = undefined
 
--- # Associative arrays without index
-checkAssociativeArraysIndex :: BashCommand -> Either String BashCommand
-checkAssociativeArraysIndex = undefined
-
 -- # Concatenating strings and arrays
 checkStringArrayConcatenation :: BashCommand -> Either String BashCommand
 checkStringArrayConcatenation = undefined
@@ -150,9 +146,9 @@ checkUnusedVar = undefined
 checkUnassignedVar :: BashCommand -> Either String Command
 checkUnassignedVar = undefined
 
--- # Assignments in subshells
-checkAssignmentInSubshell :: BashCommand -> Either String Command
-checkAssignmentInSubshell = undefined
+-- -- # Assignments in subshells
+-- checkAssignmentInSubshell :: BashCommand -> Either String Command
+-- checkAssignmentInSubshell = undefined
 
 -- # Piping to commands that don't read
 checkPipingRead :: BashCommand -> Either String Command
@@ -163,12 +159,12 @@ checkPrintArgCount :: BashCommand -> Either String Command
 checkPrintArgCount = undefined
 
 -- # Lost word boundaries in array eval
-checkArrayEval :: BashCommand -> Either String Command
-checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
+-- checkArrayEval :: BashCommand -> Either String Command
+-- checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
 
 -- # Using array value as key
-checkArrayValueUsedAsKey :: BashCommand -> Either String Command
-checkArrayValueUsedAsKey = undefined
+-- checkArrayValueUsedAsKey :: BashCommand -> Either String Command
+-- checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
 -- # Variables in printf format
