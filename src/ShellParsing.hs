@@ -46,7 +46,7 @@ operators :: [String]
 operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
 
 -- | Parses operators
-operatorParser :: Parser String
+operatorParser :: Parser Token
 operatorParser =
   constP "&&" "&&"
     <|> constP "||" "||"
@@ -88,7 +88,7 @@ operatorParser =
     <|> constP ">>>" ">>>"
 
 -- | Parses single quotes or double quotes and everything in between them
-quoteParser :: Parser String
+quoteParser :: Parser Token
 quoteParser =
   between (stringP "\"") (many (satisfy (/= '"'))) (stringP "\"") <|> between (stringP "'") (many (satisfy (/= '\''))) (stringP "'")
 
@@ -99,24 +99,19 @@ notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c))
 -- parses a name from a string
 word :: Parser String
 word = (:) <$> notQuoteOrSpaceP <*> many notQuoteOrSpaceP
-  where
-    x = (:) <$> notQuoteOrSpaceP
 
-wordP :: Parser Token
-wordP = wsP word
+wordParser :: Parser Token
+wordParser = wsP word
 
 -- >>> parse (many wordP) "x sfds _ nil "
 -- Right ["x","sfds","_","nil"]
 
-wordParser :: Parser Token
-wordParser = wsP (many notQuoteOrSpaceP)
-
 -- -- | parses a line of input into a list of words
--- tokenParser :: Parser String
--- tokenParser = wordParser
+tokenParser :: Parser String
+tokenParser = wordParser <|> operatorParser <|> quoteParser
 
 -- tokenizer :: Parser [String]
--- tokenizer = many notQuoteOrSpaceP
+tokenizer = many tokenParser
 
 test_tokenizer :: Test
 test_tokenizer =
@@ -129,8 +124,17 @@ test_tokenizer =
       parse wordParser "echo" ~?= Right "echo",
       parse wordParser "echo      " ~?= Right "echo",
       parse wordParser "echo      l" ~?= Left "l",
-      parse wordParser "l" ~?= Right "l"
+      parse wordParser "l" ~?= Right "l",
+      parse quoteParser "\"echo\"" ~?= Right "echo",
+      parse quoteParser "'echo'" ~?= Right "echo",
+      parse quoteParser "'echo" ~?= Left "No parses",
+      parse quoteParser "\"echo" ~?= Left "No parses",
+      parse tokenizer "l fejwklf && fjej" ~?= Right ["l", "fejwklf", "&&", "fjej"],
+      parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj\"" ~?= Right ["l", "fejwklf", "&&", "fjej", "ewjkfjwelkfj"]
     ]
 
+-- >>> parse quoteParser "'echo"
+-- Left "No parses"
+
 -- >>> runTestTT test_tokenizer
--- Counts {cases = 9, tried = 9, errors = 0, failures = 0}
+-- Counts {cases = 15, tried = 15, errors = 0, failures = 0}
