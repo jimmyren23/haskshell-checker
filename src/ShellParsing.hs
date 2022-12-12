@@ -132,8 +132,5 @@ test_tokenizer =
       parse wordParser "l" ~?= Right "l"
     ]
 
--- >>> parse wordParser "echo l"
--- Right "echo l"
-
 -- >>> runTestTT test_tokenizer
 -- Counts {cases = 9, tried = 9, errors = 0, failures = 0}
