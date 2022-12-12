@@ -3,6 +3,32 @@ module ShellSyntax where
 import Text.PrettyPrint (Doc, (<+>))
 import Text.PrettyPrint qualified as PP
 
+-- What are we looking for when taking string and turning it into untyped shell
+-- We are looking for the following:
+-- 1. Assignments
+-- Spaces between
+-- 2. Conditional statements
+-- 3. Exec commands and arguments
+
+-- data UntypedBashCommand =  ExecCommandUntyped CommandToken [ArgToken]
+--   -- = AssignUntyped AssignToken -- Tokens are on the left and right side of an = sign, but might no necessarily be valid
+--   -- | ConditionalUntyped ConditionToken Block -- We are only considering If 'conditional' then expression
+--   deriving (Eq, Show)
+
+-- newtype VarToken = VarToken String
+--   deriving (Eq, Show)
+
+-- newtype ExpressionToken = ExpressionToken String
+--   deriving (Eq, Show)
+
+-- newtype ConditionToken = ConditionToken String
+--   deriving (Eq, Show)
+
+-- newtype ThenToken = ThenToken String
+--   deriving (Eq, Show)
+
+-- now that we have untyped commands
+-- we can parse through them ? create the valid syntax
 data BashCommand
   = ExecCommand Command [Arg]
   | Conditional Expression Block Block
@@ -11,6 +37,8 @@ data BashCommand
 
 newtype Command = ExecName String
   deriving (Eq, Show)
+
+type Token = String
 
 newtype Arg = Arg String
   deriving (Eq, Show)
@@ -60,7 +88,6 @@ data Uop
   | Not -- `not` :: a -> Bool
   deriving (Eq, Show, Enum, Bounded)
 
-
 -- class PP a where
 --   pp :: a -> Doc
 
@@ -91,7 +118,7 @@ data Uop
 --   pp ( n) = PP.text n
 --   pp (Dot (Var v) k) = pp v <> PP.text "." <> pp k
 --   pp (Dot t k) = PP.parens (pp t) <> PP.text "." <> pp k
---   pp (Proj (Var v) k) = pp v <> PP.brackets (pp k)
+--   pp (Proj (Var v) k) = pp v <>[] PP.brackets (pp k)
 --   pp (Proj t k) = PP.parens (pp t) <> PP.brackets (pp k)
 
 -- instance PP Value where
@@ -177,4 +204,3 @@ data Uop
 --   pp m = PP.braces (PP.vcat (map ppa (Map.toList m)))
 --     where
 --       ppa (s, v2) = PP.text s <+> PP.text "=" <+> pp v2
-
