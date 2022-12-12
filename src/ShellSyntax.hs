@@ -1,7 +1,8 @@
 module ShellSyntax where
 
 import Text.PrettyPrint (Doc, (<+>))
-import Text.PrettyPrint qualified as PP
+
+-- import Text.PrettyPrint qualified as PP
 
 -- What are we looking for when taking string and turning it into untyped shell
 -- We are looking for the following:
@@ -33,6 +34,7 @@ import Text.PrettyPrint qualified as PP
 -- TODO: Account for for-loops too?
 data BashCommand
   = ExecCommand Command [Arg]
+  | PossibleAssign Var Expression
   | Conditional Expression Block Block
   | Assign Var Expression
   deriving (Eq, Show)
@@ -47,9 +49,8 @@ type NameToken = String
 newtype Arg = Arg String
   deriving (Eq, Show)
 
-newtype Var
-  = V String
-  deriving (Eq, Show)
+newtype Var = V String
+  deriving (Eq, Ord, Show)
 
 data Expression
   = Var Var -- global variables x and table indexing
@@ -85,6 +86,7 @@ data Bop
   | Ge -- `>=` :: a -> a -> Bool
   | Lt -- `<`  :: a -> a -> Bool
   | Le -- `<=` :: a -> a -> Bool
+  | Concat -- `..` :: String -> String -> String
   deriving (Eq, Show, Enum, Bounded)
 
 data Uop
