@@ -39,9 +39,6 @@ execCommandUntypedP = undefined
 bashCommandP :: Parser BashCommand
 bashCommandP = assignUntypedP <|> conditionalUntypedP <|> execCommandUntypedP
 
-reserved :: [String]
-reserved = ["!", "fi", "then", "elif", "else", "if"]
-
 operators :: [String]
 operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
 
@@ -132,11 +129,32 @@ test_tokenizer =
       parse tokenizer "l fejwklf && fjej" ~?= Right ["l", "fejwklf", "&&", "fjej"],
       parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj\"" ~?= Right ["l", "fejwklf", "&&", "fjej", "ewjkfjwelkfj"],
       parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj" ~?= Left "\"ewjkfjwelkfj",
-      parse tokenizer "l \"ewfjklew && ejwkflej \" weff" ~?= Right ["l", "ewfjklew && ejwkflej ", "weff"]
+      parse tokenizer "l \"ewfjklew && ejwkflej \" weff" ~?= Right ["l", "ewfjklew && ejwkflej ", "weff"],
+      parse tokenizer "x=5" ~?= Right ["x=5"]
     ]
 
 -- >>> parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj"
 -- Left "\"ewjkfjwelkfj"
 
 -- >>> runTestTT test_tokenizer
--- Counts {cases = 17, tried = 17, errors = 0, failures = 0}
+-- Counts {cases = 18, tried = 18, errors = 0, failures = 0}
+
+reserved :: [String]
+reserved = ["!", "fi", "then", "elif", "else", "if"]
+
+-- Parses the first character of a name
+startOfName :: Parser Char
+startOfName = char '_' <|> alpha <|> lower <|> upper
+
+-- Parses valid character from the rest of a name
+restOfName :: Parser Char
+restOfName = startOfName <|> digit
+
+-- parses a name from a string
+name :: Parser String
+name = (:) <$> startOfName <*> many restOfName
+
+nameP :: Parser NameToken
+nameP = wsP name
+  where
+    isReserved = not . (`elem` reserved)

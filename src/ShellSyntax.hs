@@ -42,6 +42,8 @@ newtype Command = ExecName String
 
 type Token = String
 
+type NameToken = String
+
 newtype Arg = Arg String
   deriving (Eq, Show)
 
