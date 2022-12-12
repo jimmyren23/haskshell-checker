@@ -130,11 +130,13 @@ test_tokenizer =
       parse quoteParser "'echo" ~?= Left "No parses",
       parse quoteParser "\"echo" ~?= Left "No parses",
       parse tokenizer "l fejwklf && fjej" ~?= Right ["l", "fejwklf", "&&", "fjej"],
-      parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj\"" ~?= Right ["l", "fejwklf", "&&", "fjej", "ewjkfjwelkfj"]
+      parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj\"" ~?= Right ["l", "fejwklf", "&&", "fjej", "ewjkfjwelkfj"],
+      parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj" ~?= Left "\"ewjkfjwelkfj",
+      parse tokenizer "l \"ewfjklew && ejwkflej \" weff" ~?= Right ["l", "ewfjklew && ejwkflej ", "weff"]
     ]
 
--- >>> parse quoteParser "'echo"
--- Left "No parses"
+-- >>> parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj"
+-- Left "\"ewjkfjwelkfj"
 
 -- >>> runTestTT test_tokenizer
--- Counts {cases = 15, tried = 15, errors = 0, failures = 0}
+-- Counts {cases = 17, tried = 17, errors = 0, failures = 0}
