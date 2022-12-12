@@ -29,6 +29,8 @@ import Text.PrettyPrint qualified as PP
 
 -- now that we have untyped commands
 -- we can parse through them ? create the valid syntax
+-- TODO: Define intermediate types (inbetween raw input and fully-parsed the input)?
+-- TODO: Account for for-loops too?
 data BashCommand
   = ExecCommand Command [Arg]
   | Conditional Expression Block Block
