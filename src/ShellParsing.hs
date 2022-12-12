@@ -108,7 +108,7 @@ wordParser = wsP word
 
 -- -- | parses a line of input into a list of words
 tokenParser :: Parser String
-tokenParser = wordParser <|> operatorParser <|> quoteParser
+tokenParser = quoteParser <|> operatorParser <|> wordParser
 
 -- tokenizer :: Parser [String]
 tokenizer = many tokenParser
