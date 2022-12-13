@@ -118,8 +118,8 @@ test_assign =
 possibleAssignP :: Parser BashCommand
 possibleAssignP = PossibleAssign <$> wsP name <* wsP (char '=') <*> wsP expP
 
--- >>> parse possibleAssignP "a = 3"
--- Right (PossibleAssign (V "a") (Val (IntVal 3)))
+-- >>> parse possibleAssignP "\"a\"= 10"
+-- Left "No parses"
 
 -- >>> parse possibleAssignP "a= 3"
 -- Right (PossibleAssign (V "a") (Val (IntVal 3)))

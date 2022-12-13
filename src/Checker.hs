@@ -3,6 +3,7 @@ module Checker where
 import Data.Map
 import Data.Map qualified as Map
 import Parsing
+import PrettyPrint (pretty)
 import ShellSyntax
 import TempParsing qualified as T
 
@@ -80,8 +81,12 @@ checkRedirectionInFind = undefined
 {- Beginner Mistakes -}
 
 -- | Checks if extra spaces are used in assignments
+-- | This checker is run later if the var gets used
+-- | ec : execCommand that var is used in
 checkSpacesInAssignments :: BashCommand -> Either String BashCommand
-checkSpacesInAssignments = undefined
+checkSpacesInAssignments ec =
+  case comm of
+    PossibleAssign var exp -> Left "Did you mean to assign variable " ++ var ++ "  when you wrote: " ++ (pretty possibleAssign) ++ "? It was used later in: " ++ (pretty exp)
 
 -- | Checks if dollar sign is present in assignments
 checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
