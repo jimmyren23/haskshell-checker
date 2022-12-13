@@ -36,9 +36,6 @@ conditionalUntypedP = undefined
 execCommandUntypedP :: Parser BashCommand
 execCommandUntypedP = undefined
 
-bashCommandP :: Parser BashCommand
-bashCommandP = assignUntypedP <|> conditionalUntypedP <|> execCommandUntypedP
-
 operators :: [String]
 operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
 
@@ -133,7 +130,7 @@ test_tokenizer =
       parse tokenizer "x=5" ~?= Right ["x=5"]
     ]
 
--- >>> parse tokenizer "l fejwklf && fjej \"ewjkfjwelkfj"
+-- >>> parse tokenizer "\"a\"=3"
 -- Left "\"ewjkfjwelkfj"
 
 -- >>> runTestTT test_tokenizer

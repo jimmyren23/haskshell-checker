@@ -56,7 +56,7 @@ test_conditional =
             Expression
             "if [\"$foo\" == 0]\n"
           ~= Right
-            Expression 
+            Expression
             "if [\"$foo\" == 0]\n"
             checkLiteralVacuousTrue
             Right
@@ -81,25 +81,25 @@ test_conditional =
             "Warning: Regex is quoted"
             checkQuotedRegex
             Right
-            Expression 
+            Expression
             "if [$1 -eq \"hi\"]\n"
           ~= Left
             "Error: Invalid use of -eq, use = to compare strings."
             checkAnd
             Right
-            Expression 
+            Expression
             "if [$a && $b]"
           ~= Left
             "Error: && inside ((..)), use [..] && [..] instead."
             checkTestOperators
             Right
-            Expression 
+            Expression
             "if [ ((2 -gt 1)) ]"
           ~= Left
             "Error: Test oprators are not valid inside ((..))."
             checkBackgroundingAndPiping
             Right
-            Expression 
+            Expression
             "if [ [ x ] & [ y ] | [ z ] ]"
           ~= Left
             "Error: Unintended use of backgrounding and piping."
@@ -186,7 +186,10 @@ test_data_type =
         checkPrintArgCount Right ExecCommand "printf \'%s: %s\' foo"
           ~= Left
             "Error: An inccorect number of arguments were given to the command."
-        checkArrayEval Right ExecCommand "eval \"${array[@]}\""
+            checkArrayEval
+            Right
+            ExecCommand
+            "eval \"${array[@]}\""
           ~= Left
             "Error: Word boundaries lost when attempting to read array."
       ]

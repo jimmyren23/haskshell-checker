@@ -15,13 +15,11 @@ import Data.Char
 import Data.Foldable
 import Data.Map ()
 import Parsing
+import ShellParsing qualified as P
 import ShellSyntax
+import State qualified as S
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Prelude hiding (filter)
-
--- Untyped shell
-
--- | A parser is a function that takes a string and returns untyped shell
 
 -- Parses the first character of a name
 startOfName :: Parser Char
@@ -35,6 +33,7 @@ restOfName = startOfName <|> digit
 name :: Parser Var
 name = V <$> ((:) <$> startOfName <*> many restOfName)
 
+-- parses binary operators
 bopP :: Parser Bop
 bopP =
   constP "+" Plus
@@ -49,6 +48,7 @@ bopP =
     <|> constP ">" Gt
     <|> constP "==" Eq
 
+-- | Parse an operator at a specified precedence level
 opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
 opAtLevel l = flip Op2 <$> filter (\x -> level x == l) bopP
 
@@ -60,11 +60,9 @@ level Minus = 5
 level Concat = 4
 level _ = 3 -- comparison operators
 
+-- | Parses unary operators
 uopP :: Parser Uop
 uopP = constP "-" Neg <|> constP "not" Not
-
-valueP :: Parser Value
-valueP = intValP <|> boolValP <|> nilValP <|> stringValP
 
 intValP :: Parser Value
 intValP = IntVal <$> wsP int
@@ -84,6 +82,10 @@ inner = many (satisfy (/= '\"'))
 
 stringValP :: Parser Value
 stringValP = StringVal <$> between (char '\"') inner (wsP (char '\"'))
+
+-- | parses different values
+valueP :: Parser Value
+valueP = intValP <|> boolValP <|> nilValP <|> stringValP
 
 expP :: Parser Expression
 expP = compP
@@ -124,3 +126,80 @@ possibleAssignP = PossibleAssign <$> wsP name <* wsP (char '=') <*> wsP expP
 
 -- >>> parse possibleAssignP "a =3"
 -- Right (PossibleAssign (V "a") (Val (IntVal 3)))
+
+-- | parses anything thats not an operator, quote, or space
+notQuoteOrSpaceP :: Parser Char
+notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c))
+
+-- parses a name from a string
+word :: Parser String
+word = (:) <$> notQuoteOrSpaceP <*> many notQuoteOrSpaceP
+
+reserved :: [String]
+reserved = ["!", "fi", "then", "elif", "else", "if"]
+
+operators :: [String]
+operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
+
+-- parses command name
+commandP :: Parser Command
+commandP = ExecName <$> wsP (filter isSpecial P.name)
+  where
+    isSpecial = not . (`elem` reserved ++ operators)
+
+argsP :: Parser [Arg]
+argsP = many (wsP word)
+
+execCommandP :: Parser BashCommand
+execCommandP = ExecCommand <$> commandP <*> argsP
+
+-- >>> parse execCommandP "ls -l"
+-- Right (ExecCommand (ExecName "ls") [Arg "-l"])
+
+-- >>> parse execCommandP "$ls -l"
+-- Left "No parses"
+
+-- >>> parse execCommandP "ls -l -a w$few wefjkl"
+-- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "w$few",Arg "wefjkl"])
+
+-- >>> parse execCommandP "ls && -a"
+-- Right (ExecCommand (ExecName "ls") [Arg "&&",Arg "-a"])
+
+-- >>> parse execCommandP "&& -l -a"
+-- Left "No parses"
+
+bashCommandP :: Parser BashCommand
+bashCommandP = assignP <|> possibleAssignP <|> execCommandP
+
+variableRef :: Parser String
+variableRef = (:) <$> char '$' *> word
+
+-- >>> parse variableRef "$x"
+-- Right "x"
+
+-- >>> parse variableRef "$xfwejklfj"
+-- Right "xfwejklfj"
+
+-- >>> parse variableRef "$xewf\""
+-- Left "\""
+
+innerArithmetic :: Parser String
+innerArithmetic = many (satisfy (/= ')'))
+
+arithmeticExpansion :: Parser String
+arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "(") innerArithmetic (stringP ")")) (stringP ")")
+
+-- >>> parse arithmeticExpansion "$((3 + 4))"
+-- Right "3 + 4"
+
+-- >>> parse bashCommandP "x=3"
+-- Right (Assign (V "x") (Val (IntVal 3)))
+
+-- >>> parse bashCommandP "x = 3"
+-- Right (PossibleAssign (V "x") (Val (IntVal 3)))
+
+-- >>> parse bashCommandP "ls -l"
+-- Right (ExecCommand (ExecName "ls") [Arg "-l"])
+
+-- >>> parse bashCommandP "ls -l -a awefew wefjkl"
+-- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])

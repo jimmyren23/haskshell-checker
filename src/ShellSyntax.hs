@@ -46,8 +46,7 @@ type Token = String
 
 type NameToken = String
 
-newtype Arg = Arg String
-  deriving (Eq, Show)
+type Arg = String
 
 newtype Var = V String
   deriving (Eq, Ord, Show)

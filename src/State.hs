@@ -36,7 +36,7 @@ newtype State s a = S (s -> (a, s))
 runState :: State s a -> s -> (a, s)
 runState (S f) = f
 
-{-
+{-ss
 This type is a parameterized state-transformer monad where the state is
 denoted by type `s` and the return value of the transformer is the
 type `a`. We make the above a monad by declaring it to be an instance
@@ -48,9 +48,9 @@ instance Monad (State s) where
   return x = S (x,) -- this tuple section (x,) is equivalent to \y -> (x,y)
 
   (>>=) :: State s a -> (a -> State s b) -> State s b
-  st >>= f = do
-    a <- st
-    f a
+  st >>= f = S $ \s ->
+    let (a, s') = runState st s
+     in runState (f a) s'
 
 {-
 We also define instances for `Functor` and `Applicative`:
@@ -69,14 +69,14 @@ returns the final result,
 -}
 
 evalState :: State s a -> s -> a
-evalState (S f) s = let (a, state) = f s in a
+evalState st s = fst (runState st s)
 
 {-
 and the second only returns the final state.
 -}
 
 execState :: State s a -> s -> s
-execState (S f) s = let (a, state) = f s in state
+execState st = snd . runState st
 
 {-
 Accessing and Modifying State
@@ -114,7 +114,9 @@ a new state *inside* a state monad. The old state is thrown away.
 -}
 
 modify :: (s -> s) -> State s ()
-modify f = S $ \s -> ((), f s)
+modify f = do
+  s <- get
+  put (f s)
 
 {-
 [1]: http://hackage.haskell.org/packages/archive/mtl/latest/doc/html/Control-Monad-State-Lazy.html#g:2

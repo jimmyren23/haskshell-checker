@@ -1,7 +1,10 @@
 module Checker where
 
+import Data.Map
+import Data.Map qualified as Map
 import Parsing
 import ShellSyntax
+import TempParsing qualified as T
 
 {- Quoting -}
 
@@ -61,6 +64,7 @@ checkBackgroundingAndPiping :: Expression -> Either String Expression
 checkBackgroundingAndPiping = undefined
 
 {- Freq Misused Commands -}
+
 -- | Checks if sudo is being redirected
 checkRedirectInSudo :: BashCommand -> Either String BashCommand
 checkRedirectInSudo = undefined
@@ -74,6 +78,7 @@ checkRedirectionInFind :: BashCommand -> Either String BashCommand
 checkRedirectionInFind = undefined
 
 {- Beginner Mistakes -}
+
 -- | Checks if extra spaces are used in assignments
 checkSpacesInAssignments :: BashCommand -> Either String BashCommand
 checkSpacesInAssignments = undefined
@@ -146,9 +151,27 @@ checkStringNumericalComparison = undefined -- \$# retrives # of params passed in
 checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
+checkArg :: [Arg] -> Map Var Expression -> Either String [Arg]
+checkArg (x : xs) history = case parse T.variableRef x of
+  Left error -> Left ("Error: " ++ error)
+  Right possVar ->
+    let var = V possVar
+     in case Map.lookup var history of
+          Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+          Just _ -> do
+            args <- checkArg xs history
+            return (x : args)
+checkArg [] _ = Right []
+
 -- | Checks if undefined variables are being used
-checkUnassignedVar :: BashCommand -> Either String Command
-checkUnassignedVar = undefined
+checkUnassignedVar :: BashCommand -> Map Var Expression -> Either String BashCommand
+checkUnassignedVar (ExecCommand cmd (x : xs)) history = do
+  args <- checkArg (x : xs) history
+  return (ExecCommand cmd args)
+checkUnassignedVar cmd _ = Right cmd
+
+-- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
+-- Left "Error: x is not assigned"
 
 -- -- # Assignments in subshells
 -- checkAssignmentInSubshell :: BashCommand -> Either String Command
@@ -167,14 +190,16 @@ checkArrayEval :: BashCommand -> Either String Command
 checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
 
 -- TODO: Need to define for-loop type first
+
 -- | Checks if array value is being used as a key
--- for i in "${x[@]}"; 
+-- for i in "${x[@]}";
 --    do ${x[$i]}
 -- done
 checkArrayValueUsedAsKey :: BashCommand -> Either String Command
 checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
+
 -- | Checks if vaiables are used in printf
 checkNoVariablesInPrintf :: BashCommand -> Either String Command
 checkNoVariablesInPrintf = undefined

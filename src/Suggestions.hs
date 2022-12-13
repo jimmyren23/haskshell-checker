@@ -12,30 +12,47 @@ import System.IO qualified as IO
 import System.IO.Error qualified as IO
 import TempParsing qualified as T
 
--- | updates the histroy of when parsing the bash command
+-- | Action that updates the state
 updHistory :: BashCommand -> S.State (Map Var Expression) ()
 updHistory bc = case bc of
   PossibleAssign var ex -> do
-    m <- S.get
-    let l = Map.insert var ex m
-    S.put (Map.insert var ex m)
+    oldHistory <- S.get
+    let newHistory = Map.insert var ex oldHistory
+    S.put newHistory
   Assign var ex -> do
-    m <- S.get
-    let l = Map.insert var ex m
-    S.put (Map.insert var ex m)
-  _ -> return ()
+    oldHistory <- S.get
+    let newHistory = Map.insert var ex oldHistory
+    S.put newHistory
+  _ -> do
+    return ()
 
--- | Reads line of strings and outputs the warnings
--- parseByLine :: Parser BashCommand -> [String] -> Maybe (S.State (Map Var Expression) ())
--- parseByLine p (x : xs) = do
---   parseByLine p xs
---   case parse p x of
---     Left err -> Nothing
---     Right bc -> Just (updHistory bc)
--- parseByLine p [] = Just (return ())
+test :: ((), Map Var Expression)
+test = S.runState (updHistory (Assign (V "x") (Val (IntVal 3)))) Map.empty
 
--- >>> parseByLine T.assignP ["x=3", "x=5", "x=8"]
--- No instance for (Show (State (Map Var Expression) ()))
---   arising from a use of ‘evalPrint’
--- There are instances for similar types:
---   instance [safe] Show State -- Defined in ‘Test.HUnit.Base’
+-- >>> test
+-- ((),fromList [(V "x",Val (IntVal 3))])
+
+-- | Read each line and update the history
+readFile :: FilePath -> Parser BashCommand -> IO ()
+readFile fileName parser = do
+  contents <- IO.readFile fileName
+  let lines = Prelude.lines contents
+  return ()
+
+-- | Reads line and outputs the warnings
+parseLine :: String -> IO (Either ParseResult BashCommand)
+parseLine line = do
+  pure $ parse T.bashCommandP line
+
+-- | For each line, parse and update the history
+parseLines :: [String] -> S.State (Map Var Expression) ()
+parseLines (x : xs) = do
+  let res = parse T.bashCommandP x
+  case res of
+    Left err -> return ()
+    Right bc -> updHistory bc
+  parseLines xs
+parseLines [] = return ()
+
+-- >>> S.runState (parseLines ["x=3", "y=4", "ls -l -r"]) Map.empty
+-- ((),fromList [(V "x",Val (IntVal 3)),(V "y",Val (IntVal 4))])
