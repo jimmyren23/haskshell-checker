@@ -38,31 +38,6 @@ updHistory bc = case bc of
   _ -> do
     return ()
 
--- | Read each line and update the history
--- readFile :: FilePath -> Parser BashCommand -> IO ()
--- readFile fileName parser = do
---   contents <- IO.readFile fileName
---   let lines = Prelude.lines contents
---   return ()
-
--- | Reads line and outputs the warnings and updates the state
-parseLine :: String -> IO (Either ParseResult BashCommand)
-parseLine line = do
-  pure $ parse T.bashCommandP line
-
--- | For each line, parse and update the history and output any errors
-parseLines :: [String] -> StateT (Map Var Expression) IO ()
-parseLines (x : xs) = do
-  let res = parse T.bashCommandP x
-  case res of
-    Left err -> return ()
-    Right bc -> updHistory bc
-  parseLines xs
-parseLines [] = return ()
-
--- >>> runStateT (parseLines ["a=1", "b=2"]) Map.empty
--- ((),fromList [(V "a",Val (IntVal 1)),(V "b",Val (IntVal 2))])
-
 -- | displays the error message
 errorS :: Show a => a -> String
 errorS cmd = "Error: Unable to Parse Command " ++ show cmd
@@ -133,3 +108,21 @@ goStEx e =
 
 -- >> runStateT (parseLines ["x=3", "y=4", "ls -l -r"]) Map.empty
 -- ((),fromList [(V "x",Val (IntVal 3)),(V "y",Val (IntVal 4))])
+
+-- -- | Reads line and outputs the warnings and updates the state
+-- parseLine :: String -> IO (Either ParseResult BashCommand)
+-- parseLine line = do
+--   pure $ parse T.bashCommandP line
+
+-- -- | For each line, parse and update the history and output any errors
+-- parseLines :: [String] -> StateT (Map Var Expression) IO ()
+-- parseLines (x : xs) = do
+--   let res = parse T.bashCommandP x
+--   case res of
+--     Left err -> return ()
+--     Right bc -> updHistory bc
+--   parseLines xs
+-- parseLines [] = return ()
+
+-- >>> runStateT (parseLines ["a=1", "b=2"]) Map.empty
+-- ((),fromList [(V "a",Val (IntVal 1)),(V "b",Val (IntVal 2))])
