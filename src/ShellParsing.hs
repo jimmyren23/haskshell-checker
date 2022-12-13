@@ -1,6 +1,4 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-module TempParsing where
+module ShellParsing where
 
 import Control.Applicative
 import Control.Monad (guard)

@@ -19,10 +19,10 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import GHC.Base (undefined)
 import Parsing
+import ShellParsing as S
 import ShellSyntax
 import System.IO qualified as IO
 import System.IO.Error qualified as IO
-import TempParsing qualified as T
 
 -- | Action that updates the state
 updHistory :: MonadState (Map Var Expression) m => BashCommand -> m ()
@@ -44,7 +44,7 @@ errorS cmd = "Error: Unable to Parse Command " ++ show cmd
 
 evalLine :: (MonadError String m, MonadState (Map Var Expression) m) => String -> m BashCommand
 evalLine s = do
-  let res = parse T.bashCommandP s
+  let res = parse S.bashCommandP s
   case res of
     Left err -> throwError $ errorS err
     Right bc -> do
@@ -112,12 +112,12 @@ goStEx e =
 -- -- | Reads line and outputs the warnings and updates the state
 -- parseLine :: String -> IO (Either ParseResult BashCommand)
 -- parseLine line = do
---   pure $ parse T.bashCommandP line
+--   pure $ parse S.bashCommandP line
 
 -- -- | For each line, parse and update the history and output any errors
 -- parseLines :: [String] -> StateT (Map Var Expression) IO ()
 -- parseLines (x : xs) = do
---   let res = parse T.bashCommandP x
+--   let res = parse S.bashCommandP x
 --   case res of
 --     Left err -> return ()
 --     Right bc -> updHistory bc

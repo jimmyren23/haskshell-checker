@@ -4,8 +4,8 @@ import Data.Map
 import Data.Map qualified as Map
 import Parsing
 import PrettyPrint (pretty)
+import ShellParsing qualified as S
 import ShellSyntax
-import TempParsing qualified as T
 
 {- Quoting -}
 
@@ -158,7 +158,7 @@ checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
 checkArg :: [Arg] -> Map Var Expression -> Either String [Arg]
-checkArg (Arg x : xs) history = case parse T.variableRef x of
+checkArg (Arg x : xs) history = case parse S.variableRef x of
   Left error -> Left ("Error: " ++ error)
   Right possVar ->
     let var = V possVar
