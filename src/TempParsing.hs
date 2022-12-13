@@ -148,7 +148,7 @@ commandP = ExecName <$> wsP (filter isSpecial P.name)
     isSpecial = not . (`elem` reserved ++ operators)
 
 argsP :: Parser [Arg]
-argsP = many (wsP word)
+argsP = many (Arg <$> wsP word)
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> argsP

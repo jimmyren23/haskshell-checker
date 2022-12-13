@@ -3,11 +3,9 @@
 module PrettyPrint where
 
 import ShellSyntax
-
+import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Text.PrettyPrint (Doc, (<+>))
 import Text.PrettyPrint qualified as PP
-
-import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 
 class PP a where
   pp :: a -> Doc
@@ -36,10 +34,10 @@ instance PP Int where
   pp = PP.int
 
 instance PP Var where
-  pp (V var)= PP.text var
+  pp (V var) = PP.text var
 
 instance PP Command where
-  pp (ExecName comm)= PP.text comm
+  pp (ExecName comm) = PP.text comm
 
 instance PP Arg where
   pp (Arg arg) = PP.text arg
@@ -90,7 +88,7 @@ ppSS ss = PP.vcat (map pp ss)
 
 instance PP BashCommand where
   pp (Assign x e) = pp x <> PP.equals <> pp e
-  pp (PossibleAssign x e) = pp x <>  PP.equals <> pp e
+  pp (PossibleAssign x e) = pp x <> PP.equals <> pp e
   -- TODO: update conditional
   pp (Conditional guard b1 b2) =
     PP.hang (PP.text "if" <+> pp guard <+> PP.text "then") 2 (pp b1)
@@ -108,11 +106,11 @@ level _ = 3 -- comparison operators
 
 test_prettyPrint :: Test
 test_prettyPrint =
-  TestList [
-    pretty (Assign (V "var1") (Val (StringVal "hi"))) ~?= "var1=\"hi\"",
-    pretty (PossibleAssign (V "var1") (Val (StringVal "hi"))) ~?= "var1=\"hi\"",
-    pretty (ExecCommand (ExecName "echo") [ Arg "a", Arg "b", Arg "c"]) ~?= "echo a b c"
-  ]
+  TestList
+    [ pretty (Assign (V "var1") (Val (StringVal "hi"))) ~?= "var1=\"hi\"",
+      pretty (PossibleAssign (V "var1") (Val (StringVal "hi"))) ~?= "var1=\"hi\"",
+      pretty (ExecCommand (ExecName "echo") [Arg "a", Arg "b", Arg "c"]) ~?= "echo a b c"
+    ]
 
 -- >>> runTestTT test_prettyPrint
 -- Counts {cases = 3, tried = 3, errors = 0, failures = 0}
@@ -122,7 +120,6 @@ test_prettyPrint =
 
 -- >>> PP.equals
 -- =
-
 
 -- >>> pp "hi" <+> pp "hello"
 -- hi hello

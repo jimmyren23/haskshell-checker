@@ -1,5 +1,8 @@
 module ShellSyntax where
 
+import Text.PrettyPrint (Doc, (<+>))
+
+-- import Text.PrettyPrint qualified as PP
 
 -- What are we looking for when taking string and turning it into untyped shell
 -- We are looking for the following:
@@ -43,7 +46,8 @@ type Token = String
 
 type NameToken = String
 
-type Arg = String
+newtype Arg = Arg String
+  deriving (Eq, Show)
 
 newtype Var = V String
   deriving (Eq, Ord, Show)
@@ -89,3 +93,24 @@ data Uop
   = Neg -- `-` :: Int -> Int
   | Not -- `not` :: a -> Bool
   deriving (Eq, Show, Enum, Bounded)
+
+-- data NewBashCommand
+--   = SimpleCommand CommandName [Suffix]
+--   | CompoundCommand IfClause
+--   deriving (Eq, Show)
+
+-- data IfClause = IfClause CompoundList CompoundList ElsePart | IfClauseSimple CompoundList CompoundList
+--   deriving (Eq, Show)
+
+-- newtype CompoundList = CompoundList [NewBashCommand]
+--   deriving (Eq, Show)
+
+-- data ElsePart =
+
+-- newtype CommandName = C ShellSyntax.Word
+--   deriving (Eq, Show)
+
+-- newtype Suffix = S ShellSyntax.Word
+--   deriving (Eq, Show)
+
+-- type Word = String

@@ -2,6 +2,7 @@
 
 module Suggestions where
 
+import Checker qualified as C
 import Data.Map (Map)
 import Data.Map qualified as Map
 import GHC.Base (undefined)

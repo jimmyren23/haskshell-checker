@@ -83,10 +83,11 @@ checkRedirectionInFind = undefined
 -- | Checks if extra spaces are used in assignments
 -- | This checker is run later if the var gets used
 -- | ec : execCommand that var is used in
-checkSpacesInAssignments :: BashCommand -> Either String BashCommand
-checkSpacesInAssignments ec =
-  case comm of
-    PossibleAssign var exp -> Left "Did you mean to assign variable " ++ var ++ "  when you wrote: " ++ (pretty possibleAssign) ++ "? It was used later in: " ++ (pretty exp)
+-- checkSpacesInAssignments :: BashCommand -> Either String BashCommand
+-- checkSpacesInAssignments ec =
+--   case comm of
+--     PossibleAssign var exp -> Left "Did you mean to assign variable " ++ var ++ "  when you wrote: " ++ pretty possibleAssign ++ "? It was used later in: " ++ pretty exp
+--     _ -> Right ec
 
 -- | Checks if dollar sign is present in assignments
 checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
@@ -157,7 +158,7 @@ checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
 checkArg :: [Arg] -> Map Var Expression -> Either String [Arg]
-checkArg (x : xs) history = case parse T.variableRef x of
+checkArg (Arg x : xs) history = case parse T.variableRef x of
   Left error -> Left ("Error: " ++ error)
   Right possVar ->
     let var = V possVar
@@ -165,7 +166,7 @@ checkArg (x : xs) history = case parse T.variableRef x of
           Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
           Just _ -> do
             args <- checkArg xs history
-            return (x : args)
+            return (Arg x : args)
 checkArg [] _ = Right []
 
 -- | Checks if undefined variables are being used
