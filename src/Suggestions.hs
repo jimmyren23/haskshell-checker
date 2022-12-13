@@ -72,8 +72,12 @@ evalLine s = do
   case res of
     Left err -> throwError $ errorS err
     Right bc -> do
-      updHistory bc
-      return bc
+      oldHistory <- Control.Monad.State.get
+      case C.checkUnassignedVar bc oldHistory of
+        Left err -> throwError $ errorS err
+        Right _ -> do
+          updHistory bc
+          return bc
 
 evalAllLines :: (MonadError String m, MonadState (Map Var Expression) m) => [String] -> m BashCommand
 evalAllLines [x] = do
@@ -109,8 +113,9 @@ goExStAll (x : xs) =
     & showEx (showSt show)
 goExStAll [] = ""
 
--- >>> goExStAll ["x=3", "y=4"]
--- "Result: Assign (V \"y\") (Val (IntVal 4)), map: fromList [(V \"x\",Val (IntVal 3)),(V \"y\",Val (IntVal 4))]"
+-- >>> goExStAll ["x=3", "y=4", "echo $z"]
+-- "Raise: Error: Unable to Parse Command \"Error: z is not assigned\""
+
 
 goStEx :: String -> String
 goStEx e =
