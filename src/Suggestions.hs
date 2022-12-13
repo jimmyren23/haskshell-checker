@@ -13,6 +13,7 @@ import Control.Monad.State
   ( MonadState (get, put),
     StateT (runStateT),
   )
+import Control.Monad.State qualified as State
 import Data.Function ((&))
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -27,11 +28,11 @@ import TempParsing qualified as T
 updHistory :: MonadState (Map Var Expression) m => BashCommand -> m ()
 updHistory bc = case bc of
   PossibleAssign var ex -> do
-    oldHistory <- Control.Monad.State.get
+    oldHistory <- State.get
     let newHistory = Map.insert var ex oldHistory
     put newHistory
   Assign var ex -> do
-    oldHistory <- Control.Monad.State.get
+    oldHistory <- State.get
     let newHistory = Map.insert var ex oldHistory
     put newHistory
   _ -> do
@@ -72,7 +73,7 @@ evalLine s = do
   case res of
     Left err -> throwError $ errorS err
     Right bc -> do
-      oldHistory <- Control.Monad.State.get
+      oldHistory <- State.get
       case C.checkUnassignedVar bc oldHistory of
         Left err -> throwError $ errorS err
         Right _ -> do

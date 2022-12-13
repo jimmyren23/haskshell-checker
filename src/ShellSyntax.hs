@@ -2,36 +2,6 @@ module ShellSyntax where
 
 import Text.PrettyPrint (Doc, (<+>))
 
--- import Text.PrettyPrint qualified as PP
-
--- What are we looking for when taking string and turning it into untyped shell
--- We are looking for the following:
--- 1. Assignments
--- Spaces between
--- 2. Conditional statements
--- 3. Exec commands and arguments
-
--- data UntypedBashCommand =  ExecCommandUntyped CommandToken [ArgToken]
---   -- = AssignUntyped AssignToken -- Tokens are on the left and right side of an = sign, but might no necessarily be valid
---   -- | ConditionalUntyped ConditionToken Block -- We are only considering If 'conditional' then expression
---   deriving (Eq, Show)
-
--- newtype VarToken = VarToken String
---   deriving (Eq, Show)
-
--- newtype ExpressionToken = ExpressionToken String
---   deriving (Eq, Show)
-
--- newtype ConditionToken = ConditionToken String
---   deriving (Eq, Show)
-
--- newtype ThenToken = ThenToken String
---   deriving (Eq, Show)
-
--- now that we have untyped commands
--- we can parse through them ? create the valid syntax
--- TODO: Define intermediate types (inbetween raw input and fully-parsed the input)?
--- TODO: Account for for-loops too?
 data BashCommand
   = ExecCommand Command [Arg]
   | PossibleAssign Var Expression
@@ -114,3 +84,34 @@ data Uop
 --   deriving (Eq, Show)
 
 -- type Word = String
+
+-- import Text.PrettyPrint qualified as PP
+
+-- What are we looking for when taking string and turning it into untyped shell
+-- We are looking for the following:
+-- 1. Assignments
+-- Spaces between
+-- 2. Conditional statements
+-- 3. Exec commands and arguments
+
+-- data UntypedBashCommand =  ExecCommandUntyped CommandToken [ArgToken]
+--   -- = AssignUntyped AssignToken -- Tokens are on the left and right side of an = sign, but might no necessarily be valid
+--   -- | ConditionalUntyped ConditionToken Block -- We are only considering If 'conditional' then expression
+--   deriving (Eq, Show)
+
+-- newtype VarToken = VarToken String
+--   deriving (Eq, Show)
+
+-- newtype ExpressionToken = ExpressionToken String
+--   deriving (Eq, Show)
+
+-- newtype ConditionToken = ConditionToken String
+--   deriving (Eq, Show)
+
+-- newtype ThenToken = ThenToken String
+--   deriving (Eq, Show)
+
+-- now that we have untyped commands
+-- we can parse through them ? create the valid syntax
+-- TODO: Define intermediate types (inbetween raw input and fully-parsed the input)?
+-- TODO: Account for for-loops too?
