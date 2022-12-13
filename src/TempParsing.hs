@@ -15,7 +15,6 @@ import Data.Char
 import Data.Foldable
 import Data.Map ()
 import Parsing
-import ShellParsing qualified as P
 import ShellSyntax
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Prelude hiding (filter)
@@ -29,8 +28,8 @@ restOfName :: Parser Char
 restOfName = startOfName <|> digit
 
 -- parses a name from a string
-name :: Parser Var
-name = V <$> ((:) <$> startOfName <*> many restOfName)
+name :: Parser String
+name = (:) <$> startOfName <*> many restOfName
 
 -- parses binary operators
 bopP :: Parser Bop
@@ -66,12 +65,12 @@ uopP = constP "-" Neg <|> constP "not" Not
 intValP :: Parser Value
 intValP = IntVal <$> wsP int
 
--- >>> P.parse (many boolValP) "true false\n true"
+-- >>> parse (many boolValP) "true false\n true"
 -- Right [BoolVal True,BoolVal False,BoolVal True]
 boolValP :: Parser Value
 boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 
--- >>> P.parse (many nilValP) "nil nil\n nil"
+-- >>> parse (many nilValP) "nil nil\n nil"
 -- Right [NilVal,NilVal,NilVal]
 nilValP :: Parser Value
 nilValP = wsP (constP "nil" NilVal)
@@ -100,7 +99,7 @@ expP = compP
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
-assignP = Assign <$> name <*> (char '=' *> expP)
+assignP = (Assign . V <$> name) <*> (char '=' *> expP)
 
 test_assign :: Test
 test_assign =
@@ -115,7 +114,7 @@ test_assign =
 -- Right (Val (IntVal 31))
 
 possibleAssignP :: Parser BashCommand
-possibleAssignP = PossibleAssign <$> wsP name <* wsP (char '=') <*> wsP expP
+possibleAssignP = PossibleAssign <$> wsP (V <$> name) <* wsP (char '=') <*> wsP expP
 
 -- >>> parse possibleAssignP "\"a\"= 10"
 -- Left "No parses"
@@ -142,7 +141,7 @@ operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "
 
 -- parses command name
 commandP :: Parser Command
-commandP = ExecName <$> wsP (filter isSpecial P.name)
+commandP = ExecName <$> wsP (filter isSpecial name)
   where
     isSpecial = not . (`elem` reserved ++ operators)
 
