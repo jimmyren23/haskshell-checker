@@ -113,9 +113,11 @@ goExStAll (x : xs) =
     & showEx (showSt show)
 goExStAll [] = ""
 
--- >>> goExStAll ["x=3", "y=4", "echo $z"]
--- "Raise: Error: Unable to Parse Command \"Error: z is not assigned\""
+-- >>> goExStAll ["x=3", "y=4", "echo $y"]
+-- "Result: ExecCommand (ExecName \"echo\") [Arg \"$y\"], map: fromList [(V \"x\",Val (IntVal 3)),(V \"y\",Val (IntVal 4))]"
 
+-- >>> goExStAll ["x=3", "y=4", "echo $z", "echo $y"]
+-- "Raise: Error: Unable to Parse Command \"Error: z is not assigned\""
 
 goStEx :: String -> String
 goStEx e =

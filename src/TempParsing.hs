@@ -17,7 +17,6 @@ import Data.Map ()
 import Parsing
 import ShellParsing qualified as P
 import ShellSyntax
-import State qualified as S
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Prelude hiding (filter)
 
