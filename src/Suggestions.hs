@@ -92,7 +92,7 @@ goExStAll [] = ""
 -- >>> goExStAll ["x=3", "y=4", "echo $y"]
 -- "Result: ExecCommand (ExecName \"echo\") [Arg \"$y\"], map: fromList [(V \"x\",Val (IntVal 3)),(V \"y\",Val (IntVal 4))]"
 
--- >>> goExStAll ["x= 3", "y=4", "echo $x", "echo $y"]
+-- >>> goExStAll ["$x= 3", "y=4", "echo $x", "echo $y"]
 -- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x= 3? It was used later in: echo $x\""
 
 goStEx :: String -> String

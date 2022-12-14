@@ -112,13 +112,19 @@ test_assign =
 -- Right (Val (IntVal 31))
 
 possibleAssignP :: Parser BashCommand
-possibleAssignP = PossibleAssign <$> wsP (V <$> name) <* wsP (char '=') <*> wsP expP
+possibleAssignP = wsAssignP <|> dsAssignP
+
+wsAssignP :: Parser BashCommand
+wsAssignP = PossibleAssign <$> wsP (V <$> name) <* wsP (char '=') <*> wsP expP
+
+-- | Parses assignments with $ in front of var name
+dsAssignP :: Parser BashCommand
+dsAssignP =  stringP "$" *> wsAssignP
 
 -- >>> parse possibleAssignP "\"a\"= 10"
 -- Left "No parses"
 
--- >>> parse possibleAssignP "a= 3"
--- Right (PossibleAssign (V "a") (Val (IntVal 3)))
+-- >>> parse possibleAssignP "$a=7"
 
 -- >>> parse possibleAssignP "a =3"
 -- Right (PossibleAssign (V "a") (Val (IntVal 3)))
