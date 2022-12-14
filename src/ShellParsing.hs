@@ -149,8 +149,8 @@ argsP = many (Arg <$> wsP word)
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> argsP
 
--- >>> parse execCommandP "ls -l"
--- Right (ExecCommand (ExecName "ls") [Arg "-l"])
+-- >>> parse execCommandP "file >>> -l"
+-- Right (ExecCommand (ExecName "file") [Arg ">>>",Arg "-l"])
 
 -- >>> parse execCommandP "$ls -l"
 -- Left "No parses"

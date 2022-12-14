@@ -25,15 +25,15 @@ import System.IO qualified as IO
 import System.IO.Error qualified as IO
 
 -- | Action that updates the state
-updHistory :: MonadState (Map Var Expression) m => BashCommand -> m ()
-updHistory bc = case bc of
+updHistory :: MonadState (Map Var (Expression, String, Bool)) m => BashCommand -> String -> m ()
+updHistory bc s = case bc of
   PossibleAssign var ex -> do
     oldHistory <- State.get
-    let newHistory = Map.insert var ex oldHistory
+    let newHistory = Map.insert var (ex,s, False) oldHistory
     put newHistory
   Assign var ex -> do
     oldHistory <- State.get
-    let newHistory = Map.insert var ex oldHistory
+    let newHistory = Map.insert var (ex,s, True) oldHistory
     put newHistory
   _ -> do
     return ()
@@ -42,7 +42,7 @@ updHistory bc = case bc of
 errorS :: Show a => a -> String
 errorS cmd = "Error: Unable to Parse Command " ++ show cmd
 
-evalLine :: (MonadError String m, MonadState (Map Var Expression) m) => String -> m BashCommand
+evalLine :: (MonadError String m, MonadState (Map Var (Expression, String, Bool)) m) => String -> m BashCommand
 evalLine s = do
   let res = parse S.bashCommandP s
   case res of
@@ -52,10 +52,10 @@ evalLine s = do
       case C.checkUnassignedVar bc oldHistory of
         Left err -> throwError $ errorS err
         Right _ -> do
-          updHistory bc
+          updHistory bc s
           return bc
 
-evalAllLines :: (MonadError String m, MonadState (Map Var Expression) m) => [String] -> m BashCommand
+evalAllLines :: (MonadError String m, MonadState (Map Var (Expression, String, Bool)) m) => [String] -> m BashCommand
 evalAllLines [x] = do
   evalLine x
 evalAllLines (x : xs) = do
@@ -63,7 +63,7 @@ evalAllLines (x : xs) = do
   evalAllLines xs
 evalAllLines [] = undefined
 
-showSt :: (a -> String) -> (a, Map Var Expression) -> String
+showSt :: (a -> String) -> (a, Map Var (Expression, String, Bool)) -> String
 showSt f (v, map) = f v ++ ", map: " ++ show map
 
 -- | Show the result of runExceptT, parameterized by a function
@@ -92,8 +92,8 @@ goExStAll [] = ""
 -- >>> goExStAll ["x=3", "y=4", "echo $y"]
 -- "Result: ExecCommand (ExecName \"echo\") [Arg \"$y\"], map: fromList [(V \"x\",Val (IntVal 3)),(V \"y\",Val (IntVal 4))]"
 
--- >>> goExStAll ["x=3", "y=4", "echo $z", "echo $y"]
--- "Raise: Error: Unable to Parse Command \"Error: z is not assigned\""
+-- >>> goExStAll ["x = 3", "y=4", "echo $x", "echo $y"]
+-- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x =3? It was used later in: echo $x\""
 
 goStEx :: String -> String
 goStEx e =

@@ -4,7 +4,7 @@ import Text.PrettyPrint (Doc, (<+>))
 
 data BashCommand
   = ExecCommand Command [Arg]
-  | PossibleAssign Var Expression
+  | PossibleAssign Var Expression 
   | Conditional Expression Block Block
   | Assign Var Expression
   deriving (Eq, Show)
@@ -78,7 +78,7 @@ data Uop
 -- data ElsePart =
 
 -- newtype CommandName = C ShellSyntax.Word
---   deriving (Eq, Show)
+--  s deriving (Eq, Show)
 
 -- newtype Suffix = S ShellSyntax.Word
 --   deriving (Eq, Show)

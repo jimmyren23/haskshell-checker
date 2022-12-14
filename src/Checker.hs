@@ -157,24 +157,29 @@ checkStringNumericalComparison = undefined -- \$# retrives # of params passed in
 checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
-checkArg :: [Arg] -> Map Var Expression -> Either String [Arg]
-checkArg (Arg x : xs) history = case parse S.variableRef x of
+-- | How to print original command for possible assigns?
+-- | 1. Store in history map as a string in its original form
+-- | 2. Different types of possible assign
+-- | 3. Store = as part of var string
+checkArg :: [Arg] -> Map Var (Expression, String, Bool) -> BashCommand -> Either String [Arg]
+checkArg (Arg x : xs) history cmd = case parse S.variableRef x of
   Left error -> Left ("Error: " ++ error)
   Right possVar ->
     let var = V possVar
      in case Map.lookup var history of
           Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+          Just (_, s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
           Just _ -> do
-            args <- checkArg xs history
+            args <- checkArg xs history cmd
             return (Arg x : args)
-checkArg [] _ = Right []
+checkArg [] _  _ = Right []
 
 -- | Checks if undefined variables are being used
-checkUnassignedVar :: BashCommand -> Map Var Expression -> Either String BashCommand
+checkUnassignedVar :: BashCommand -> Map Var (Expression, String, Bool) -> Either String BashCommand
 checkUnassignedVar (ExecCommand cmd (x : xs)) history = do
-  args <- checkArg (x : xs) history
+  args <- checkArg (x : xs) history (ExecCommand cmd (x : xs))
   return (ExecCommand cmd args)
-checkUnassignedVar cmd _ = Right cmd
+checkUnassignedVar cmd _ = Right cmd -- for other types like assignments, skip.
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"

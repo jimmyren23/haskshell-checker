@@ -55,7 +55,7 @@ firstJust :: Maybe a -> Maybe a -> Maybe a
 firstJust (Just x) _ = Just x
 firstJust Nothing y = y
 
-newtype History = History (Map Var Expression)
+newtype History = History (Map Var (Expression, String, Bool))
 
 -- | Filter the parsing results by a predicate
 filter :: (a -> Bool) -> Parser a -> Parser a
