@@ -73,6 +73,9 @@ boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 nilValP :: Parser Value
 nilValP = wsP (constP "nil" NilVal)
 
+
+
+
 {- Parsers for quoted strings -}
 
 -- | parses unallowed tokens in quotes
@@ -209,14 +212,20 @@ execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 -- >>> parse execCommandP "&& -l -a"
 -- Left "No parses"
 
+conditionalParser :: Parser BashCommand
+conditionalParser =
+  Conditional <$> (wsP (string "if [") *> wsP expP <* string "]")
+    <*> (wsP (string "then") *> wsP blockP)
+    <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
+
 bashCommandP :: Parser BashCommand
-bashCommandP = assignP <|> possibleAssignP <|> execCommandP
+bashCommandP = assignP <|> possibleAssignP <|> execCommandP 
 
 variableRef :: Parser String
 variableRef = (:) <$> char '$' *> word
 
 -- >>> parse bashCommandP "echo \'\\'\'"
--- Left "'~\""
+-- Right (ExecCommand (ExecName "echo") [SingleQuote ["<escape>"]])
 
 -- >>> parse variableRef "$x"
 -- Right "x"
@@ -249,3 +258,18 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])
+
+blockP :: Parser Block
+blockP = Block <$> many (wsP bashCommandP)
+
+ {- File parser -}
+parseLuFile :: String -> IO (Either String Block)
+parseLuFile = parseFromFile (const <$> blockP <*> eof)
+
+-- >>> 
+
+p fn ast = do
+  result <- parseLuFile fn
+  case result of
+    (Left _) -> assert False
+    (Right ast') -> assert (ast == ast')

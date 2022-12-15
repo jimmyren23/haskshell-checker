@@ -21,6 +21,8 @@ import Data.Map hiding (filter)
 import ShellSyntax
 import Test.HUnit
 import Prelude hiding (filter)
+import System.IO qualified as IO
+import System.IO.Error qualified as IO
 
 -- Untyped shell
 
@@ -153,3 +155,23 @@ stringP s = wsP (string s) *> pure ()
 
 constP :: String -> a -> Parser a
 constP s rtrnVal = wsP (string s) *> pure rtrnVal
+
+eof :: Parser ()
+eof = P $ \s -> case s of
+  [] -> Just ((), [])
+  _ : _ -> Nothing
+
+
+{- File parsers -}
+
+parseFromFile :: Parser a -> String -> IO (Either String a)
+parseFromFile parser filename = do
+  IO.catchIOError
+    ( do
+        handle <- IO.openFile filename IO.ReadMode
+        str <- IO.hGetContents handle
+        pure $ parse parser str
+    )
+    ( \e ->
+        pure $ Left $ "Error:" ++ show e
+    )

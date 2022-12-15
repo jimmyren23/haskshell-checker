@@ -7,11 +7,11 @@ import PrettyPrint (pretty)
 import ShellParsing qualified as S
 import ShellSyntax
 
+-- | Finds the first result with error
 eitherOp :: Either String [a] -> Either String [a] -> Either String  [a]
 eitherOp (Left err1) _ = Left err1
 eitherOp _  (Left err2) = Left err2
 eitherOp (Right cmd) _  = Right cmd
-
 
 {- Quoting -}
 
