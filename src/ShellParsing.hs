@@ -79,8 +79,7 @@ nilValP = wsP (constP "nil" NilVal)
 errorStrParser :: Parser String
 errorStrParser =
   -- constP "\'" "<singleQuote>" -- single quote
-  constP "\\'" "<escape>"
-  <|> constP "~" "<tilde>"
+  constP "\\'" "<escape>" <|> constP "~" "<tilde>"
 --
 -- Since ' can be used in double quoted string and vice versa, inner has to be defined separately
 --
@@ -106,8 +105,8 @@ sqStringValP = between (char '\'') innerSq (wsP (char '\''))
 sqStringValErrP :: Parser [Token]
 sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (wsP (char '\''))
 
--- >>> parse sqStringValErrP "\'~ $x\'"
--- Right ["<tilde>","$x"]
+-- >>> parse dqStringValErrP "\"~\""
+-- Right ["<tilde>"]
 
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
@@ -196,8 +195,8 @@ argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 
--- >>> parse execCommandP "echo \"\\'\""
--- Left "\"\\'\""
+-- >>> parse execCommandP "echo \"~\""
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]])
 -- >>> parse sqStringValP "'hi'"
 -- Right "hi"
 
@@ -215,6 +214,9 @@ bashCommandP = assignP <|> possibleAssignP <|> execCommandP
 
 variableRef :: Parser String
 variableRef = (:) <$> char '$' *> word
+
+-- >>> parse bashCommandP "echo \'\\'\'"
+-- Left "'~\""
 
 -- >>> parse variableRef "$x"
 -- Right "x"

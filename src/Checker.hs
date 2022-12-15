@@ -7,10 +7,11 @@ import PrettyPrint (pretty)
 import ShellParsing qualified as S
 import ShellSyntax
 
-eitherOp :: Either String [Arg] -> Either String [Arg] -> Either String [Arg]
+eitherOp :: Either String [a] -> Either String [a] -> Either String  [a]
 eitherOp (Left err1) _ = Left err1
 eitherOp _  (Left err2) = Left err2
 eitherOp (Right cmd) _  = Right cmd
+
 
 {- Quoting -}
 
@@ -19,31 +20,10 @@ checkUnquotedVar :: Var -> Either String Var
 checkUnquotedVar = undefined
 
 -- | Checks if tilde is used in quotes
-checkQuotedTildeExpansion :: BashCommand -> Either String BashCommand
-checkQuotedTildeExpansion (ExecCommand cmd args) = checkQuotedTildeExpansionArgs (ExecCommand cmd args) args
-checkQuotedTildeExpansion cmd = Right cmd
 
-checkQuotedTildeExpansionArgs :: BashCommand -> [Arg] -> Either String BashCommand
-checkQuotedTildeExpansionArgs cmd args =
-  case args of
-    [] -> Right cmd
-    (a : as) ->
-      case a of
-        Arg x -> checkQuotedTildeExpansionArgs cmd as
-        SingleQuote tokens -> do
-          checkQuotedTildeExpansionTokens cmd tokens
-          args <- checkQuotedTildeExpansionArgs cmd as
-          return cmd
-        DoubleQuote tokens -> do
-          checkQuotedTildeExpansionTokens cmd tokens
-          args <- checkQuotedTildeExpansionArgs cmd as
-          return cmd
-
-checkQuotedTildeExpansionTokens :: BashCommand -> [Token] -> Either String BashCommand
-checkQuotedTildeExpansionTokens cmd tokens =
-  case tokens of
-    [] -> Right cmd
-    (t : ts) -> if t == "<tilde>" then Left "Tilde expansion can't be used in strings" else checkQuotedTildeExpansionTokens cmd ts
+checkQuotedTildeExpansionTokens :: Token -> Either String [Token]
+checkQuotedTildeExpansionTokens token =
+    if token == "<tilde>" then Left "Tilde expansion can't be used in strings" else Right [token]
 
 -- | Checks if single quotes are closed by apostrophe
 checkSingleQuoteApostrophe :: Value -> Either String Value
@@ -103,15 +83,6 @@ checkRedirectionInFind :: BashCommand -> Either String BashCommand
 checkRedirectionInFind = undefined
 
 {- Beginner Mistakes -}
-
--- | Checks if extra spaces are used in assignments
--- | This checker is run later if the var gets used
--- | ec : execCommand that var is used in
--- checkSpacesInAssignments :: BashCommand -> Either String BashCommand
--- checkSpacesInAssignments ec =
---   case comm of
---     PossibleAssign var exp -> Left "Did you mean to assign variable " ++ var ++ "  when you wrote: " ++ pretty possibleAssign ++ "? It was used later in: " ++ pretty exp
---     _ -> Right ec
 
 -- | Checks if dollar sign is present in assignments
 checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
@@ -187,14 +158,13 @@ checkVarInSingleQuotes t =
         Left error -> Right [t]
         Right _ -> Left "Variables cannot be used inside single quotes."
 
--- checkEscapeInSingleQuotes :: Arg -> Either String [Arg]
--- checkEscapeInSingleQuotes arg@(Arg a) = 
---   if a == "\'" then Left "Escape cannot be used in single quotes" else Right [arg]
--- checkEscapeInSingleQuotes _ = Right []
+checkEscapeInSingleQuotes :: Token -> Either String [Token]
+checkEscapeInSingleQuotes t = 
+  if t == "<escape>" then Left "Escape cannot be used in single quotes" else Right [t]
 
 checkArgSingleQuotes :: [Token] -> Map Var (String, Bool) -> Either String [Token]
 checkArgSingleQuotes (t : tokens) history =
-  let res = checkVarInSingleQuotes t in
+  let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t in
     case res of
       Left err -> Left err
       Right tt -> do
@@ -246,12 +216,11 @@ checkArg (x : xs) history cmd =
       return (x : args)
 checkArg [] _  _ = Right []
 
--- | Checks if undefined variables are being used
-checkUnassignedVar :: BashCommand -> Map Var (String, Bool) -> Either String BashCommand
-checkUnassignedVar command@(ExecCommand cmd (x : xs)) history = do
+checkExecCommandArgs :: BashCommand -> Map Var (String, Bool) -> Either String BashCommand
+checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   args <- checkArg (x : xs) history command
   return (ExecCommand cmd args)
-checkUnassignedVar cmd _ = Right cmd -- for other types like assignments, skip.
+checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"

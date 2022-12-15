@@ -43,11 +43,6 @@ updHistory bc s = case bc of
 errorS :: Show a => a -> String
 errorS cmd = "Error: Unable to Parse Command " ++ show cmd
 
-eitherOp :: Either String BashCommand -> Either String BashCommand -> Either String BashCommand
-eitherOp (Left err1) _ = Left err1
-eitherOp _  (Left err2) = Left err2
-eitherOp (Right cmd) _  = Right cmd
-
 evalLine :: (MonadError String m, MonadState (Map Var (String, Bool)) m) => String -> m BashCommand
 evalLine s = do
   let res = parse S.bashCommandP s
@@ -55,7 +50,7 @@ evalLine s = do
     Left err -> throwError $ errorS err
     Right bc -> do
       oldHistory <- State.get
-      let res = C.checkUnassignedVar bc oldHistory `eitherOp` C.checkQuotedTildeExpansion bc in
+      let res = C.checkExecCommandArgs bc oldHistory in
         case res of
           Left err -> throwError $ errorS err
           Right _ -> do
@@ -97,11 +92,13 @@ goExStAll (x : xs) =
 goExStAll [] = ""
 
 -- >>> goExStAll ["x = 7", "y=10", "echo $y"]
--- "Raise: Error: Unable to Parse Command \"No parses\""
+-- "Result: ExecCommand (ExecName \"echo\") [Arg \"$y\"], map: fromList [(V \"x\",(\"x = 7\",False)),(V \"y\",(\"y=10\",True))]"
 
--- >>> goExStAll ["x = 3", "echo \"$x\""]
--- "Raise: Error: Unable to Parse Command \"Variables cannot be used inside single quotes.\""
+-- >>> goExStAll ["$x= 3", "echo \"\""]
+-- "Raise: Error: Unable to Parse Command \"Error: No parses\""
 
+-- >>> doParse S.bashCommandP "echo \"~\""
+-- Just (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]],"")
 
 goStEx e =
   evalLine e -- :: ExceptT String (StateT Int Identity) Int
