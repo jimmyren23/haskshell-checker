@@ -170,7 +170,7 @@ try1 filename = do
 
 
 -- >>> try1 "test/conditional.sh"
--- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- "if [y < 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
 
 -- Ambiguous occurrence ‘test’

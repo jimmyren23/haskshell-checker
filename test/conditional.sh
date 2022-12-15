@@ -1,4 +1,5 @@
-if [y=1] 
+$y=1
+if [$y -lt 1] 
 then
   x=2
 else

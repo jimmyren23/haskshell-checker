@@ -176,8 +176,8 @@ checkArgDoubleQuotes :: [Token] -> Map Var (String, Bool) -> BashCommand -> Eith
 checkArgDoubleQuotes (t : tokens) history cmd = 
    case parse S.variableRef t of
           Left error -> Left ("Error: " ++ error)
-          Right possVar ->
-            let var = V possVar
+          Right var ->
+            let V possVar = var
             in case Map.lookup var history of
                   Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
                   Just (s, False) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
@@ -198,8 +198,8 @@ checkArg (x : xs) history cmd =
     Arg a ->
       case parse S.variableRef a of
       Left error -> Left ("Error: " ++ error)
-      Right possVar ->
-        let var = V possVar
+      Right var ->
+        let V possVar = var
         in case Map.lookup var history of
               Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
               Just (s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)

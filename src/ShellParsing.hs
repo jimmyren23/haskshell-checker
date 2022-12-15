@@ -32,17 +32,25 @@ name = (:) <$> startOfName <*> many restOfName
 -- parses binary operators
 bopP :: Parser Bop
 bopP =
-  constP "+" Plus
-    <|> constP "-" Minus
-    <|> constP "*" Times
-    <|> constP "//" Divide
-    <|> constP "%" Modulo
-    <|> constP ".." Concat
-    <|> constP "<=" Le
-    <|> constP "<" Lt
-    <|> constP ">=" Ge
-    <|> constP ">" Gt
-    <|> constP "==" Eq
+  choice
+  
+    [ 
+
+      constP "-gt" Gt,
+      constP "-lt" Lt,
+      constP "-eq" Eq,
+      constP "+" Plus,
+      constP "-" Minus,
+      constP "*" Times,
+      constP "//" Divide,
+      constP "%" Modulo,
+      constP "==" Eq,
+      constP ">=" Ge,
+      constP ">" Gt,
+      constP "<=" Le,
+      constP "<" Lt,
+      constP ".." Concat
+    ]
 
 -- | Parse an operator at a specified precedence level
 opAtLevel :: Int -> Parser (Expression -> Expression -> Expression)
@@ -128,7 +136,10 @@ expP = compP
     uopexpP =
       baseP
         <|> Op1 <$> uopP <*> uopexpP
-    baseP = Val <$> valueP
+    baseP =  Var <$> variableRef <|> Val <$> valueP
+
+-- >>> parse expP "$y < 1"
+-- Left " < 1"
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
@@ -215,21 +226,23 @@ execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 conditionalP :: Parser BashCommand
 conditionalP =
 -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
-  Conditional <$> (wsP (string "if [") *> wsP blockP <* string "]")
+  Conditional <$> (wsP (string "if [") *> wsP expP <* wsP (string "]"))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
 -- >>> parse ((wsP (string "then") *> wsP blockP)) "\nthen\n  x=2"
+-- Left "No parses"
+
 
 
 -- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
--- Right (Block [Assign (V "y") (Val (IntVal 1))])
 
 bashCommandP :: Parser BashCommand
 bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP 
 
-variableRef :: Parser String
-variableRef = (:) <$> char '$' *> word
+variableRef :: Parser Var
+variableRef = V <$> (char '$' *> wsP word)
+
 
 -- >>> parse bashCommandP "echo \'\\'\'"
 -- Right (ExecCommand (ExecName "echo") [SingleQuote ["<escape>"]])
@@ -273,10 +286,14 @@ blockP = Block <$> many (wsP bashCommandP)
 parseShellScript :: String -> IO (Either String Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
--- How it looks : "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
--- >>> parseShellScript "test/conditional.sh"
--- Left "No parses"
+-- How it looks : "if [y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
+
+-- >>> parse expP "$y < 1"
+-- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
+
+-- >>> parseShellScript "test/conditional.sh"
+-- Right (Block [Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
 
 p :: String -> Block -> IO ()
 p fn ast = do

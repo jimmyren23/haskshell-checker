@@ -5,7 +5,7 @@ import Text.PrettyPrint (Doc, (<+>))
 data BashCommand
   = ExecCommand Command [Arg]
   | PossibleAssign Var Expression 
-  | Conditional Block Block Block
+  | Conditional Expression Block Block
   | Assign Var Expression
   deriving (Eq, Show)
 
