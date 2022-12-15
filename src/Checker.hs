@@ -14,8 +14,25 @@ checkUnquotedVar :: Var -> Either String Var
 checkUnquotedVar = undefined
 
 -- | Checks if tilde is used in quotes
-checkQuotedTildeExpansion :: Value -> Either String Value
-checkQuotedTildeExpansion = undefined
+checkQuotedTildeExpansion :: BashCommand -> Either String BashCommand
+checkQuotedTildeExpansion (ExecCommand cmd args) = checkQuotedTildeExpansionArgs (ExecCommand cmd args) args
+checkQuotedTildeExpansion cmd = Right cmd
+
+checkQuotedTildeExpansionArgs :: BashCommand -> [Arg] -> Either String BashCommand
+checkQuotedTildeExpansionArgs cmd args =
+  case args of
+    [] -> Right cmd
+    (a : as) -> 
+      case a of
+        Arg x -> if x == "<tilde>" then Left "Tilde expansion can't be used in strings" else checkQuotedTildeExpansionArgs cmd as
+        SingleQuote args2 -> do
+          checkQuotedTildeExpansionArgs cmd args2
+          args <- checkQuotedTildeExpansionArgs cmd as
+          return cmd
+        DoubleQuote args2 -> do
+          checkQuotedTildeExpansionArgs cmd args2
+          args <- checkQuotedTildeExpansionArgs cmd as
+          return cmd
 
 -- | Checks if single quotes are closed by apostrophe
 checkSingleQuoteApostrophe :: Value -> Either String Value
@@ -223,8 +240,8 @@ checkArg [] _  _ = Right []
 
 -- | Checks if undefined variables are being used
 checkUnassignedVar :: BashCommand -> Map Var (String, Bool) -> Either String BashCommand
-checkUnassignedVar (ExecCommand cmd (x : xs)) history = do
-  args <- checkArg (x : xs) history (ExecCommand cmd (x : xs))
+checkUnassignedVar command@(ExecCommand cmd (x : xs)) history = do
+  args <- checkArg (x : xs) history command
   return (ExecCommand cmd args)
 checkUnassignedVar cmd _ = Right cmd -- for other types like assignments, skip.
 

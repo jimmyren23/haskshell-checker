@@ -43,6 +43,11 @@ updHistory bc s = case bc of
 errorS :: Show a => a -> String
 errorS cmd = "Error: Unable to Parse Command " ++ show cmd
 
+eitherOp :: Either String BashCommand -> Either String BashCommand -> Either String BashCommand
+eitherOp (Left err1) _ = Left err1
+eitherOp _  (Left err2) = Left err2
+eitherOp (Right cmd) _  = Right cmd
+
 evalLine :: (MonadError String m, MonadState (Map Var (String, Bool)) m) => String -> m BashCommand
 evalLine s = do
   let res = parse S.bashCommandP s
@@ -50,7 +55,7 @@ evalLine s = do
     Left err -> throwError $ errorS err
     Right bc -> do
       oldHistory <- State.get
-      let res = C.checkUnassignedVar bc oldHistory in
+      let res = C.checkUnassignedVar bc oldHistory `eitherOp` C.checkQuotedTildeExpansion bc in
         case res of
           Left err -> throwError $ errorS err
           Right _ -> do
@@ -94,8 +99,9 @@ goExStAll [] = ""
 -- >>> goExStAll ["x = 7", "y=10", "echo $y"]
 -- "Raise: Error: Unable to Parse Command \"No parses\""
 
--- >>> goExStAll ["x =3", "echo \'hi $x\'"]
--- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x =3? It was used later in: echo 'hi $x'\""
+-- >>> goExStAll ["x = 3", "echo \"$x\""]
+-- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x = 3? It was used later in: echo \\\"$x\\\"\""
+
 
 goStEx e =
   evalLine e -- :: ExceptT String (StateT Int Identity) Int

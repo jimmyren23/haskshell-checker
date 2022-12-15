@@ -192,13 +192,13 @@ errorStrParser :: Parser String
 errorStrParser =
   constP ">>" "<singleQuote>" -- single quote
   <|> constP "\\'" "<escape>" <* satisfy isAlpha
-  <|> constP "~/" "<tilda>"
+  <|> constP "~/" "<tilde>"
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 
--- >>> parse execCommandP "echo $x"
--- Right (ExecCommand (ExecName "echo") [Arg "$x"])
+-- >>> parse execCommandP "echo \"hi hello\""
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote [Arg "hi",Arg "hello"]])
 
 -- >>> parse sqStringValP "'hi'"
 -- Left "No parses"
