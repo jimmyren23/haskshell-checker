@@ -7,6 +7,11 @@ import PrettyPrint (pretty)
 import ShellParsing qualified as S
 import ShellSyntax
 
+eitherOp :: Either String [Arg] -> Either String [Arg] -> Either String [Arg]
+eitherOp (Left err1) _ = Left err1
+eitherOp _  (Left err2) = Left err2
+eitherOp (Right cmd) _  = Right cmd
+
 {- Quoting -}
 
 -- | Checks if a variable is quoted
@@ -38,7 +43,7 @@ checkQuotedTildeExpansionArgs cmd args =
 checkSingleQuoteApostrophe :: Value -> Either String Value
 checkSingleQuoteApostrophe = undefined
 
--- | Checks if apostrophe is escaped inside sinlge quotes
+-- | Checks if apostrophe is escaped inside single quotes
 checkEscapeQuote :: Value -> Either String Value
 checkEscapeQuote = undefined
 
@@ -194,6 +199,29 @@ checkStringNumericalComparison = undefined -- \$# retrives # of params passed in
 checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
+checkVarInSingleQuotes :: Arg -> Either String [Arg]
+checkVarInSingleQuotes arg@(Arg a) = 
+  case parse S.variableRef a of
+        Left error -> Right [arg]
+        Right _ -> Left "Variables cannot be used inside single quotes."
+checkVarInSingleQuotes _ = Right []
+
+-- checkEscapeInSingleQuotes :: Arg -> Either String [Arg]
+-- checkEscapeInSingleQuotes arg@(Arg a) = 
+--   if a == "\'" then Left "Escape cannot be used in single quotes" else Right [arg]
+-- checkEscapeInSingleQuotes _ = Right []
+
+checkArgSingleQuotes :: [Arg] -> Map Var (String, Bool) -> Either String [Arg]
+checkArgSingleQuotes (arg : args) history =
+  let res = checkVarInSingleQuotes arg in
+    case res of
+      Left err -> Left err
+      Right arg -> do
+        args2 <- checkArgSingleQuotes args history
+        return (arg ++ args2)
+checkArgSingleQuotes [] _  = Right []
+
+
 -- | How to print original command for possible assigns?
 -- | 1. Store in history map as a string in its original form
 -- | 2. Different types of possible assign
@@ -212,15 +240,7 @@ checkArg (x : xs) history cmd =
               Just _ -> do
                 args <- checkArg xs history cmd
                 return (x : args)
-    SingleQuote (arg : as) ->
-      let Arg a = arg in
-         case parse S.variableRef a of
-          Left error -> 
-            do 
-              checkArg as history cmd
-              args <- checkArg xs history cmd
-              return (x : args)
-          _ -> Left "Variables cannot be used inside single quotes."
+    SingleQuote args -> checkArgSingleQuotes args history
     DoubleQuote (arg : as) -> 
       let Arg a = arg in
         case parse S.variableRef a of

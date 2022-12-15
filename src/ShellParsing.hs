@@ -190,18 +190,17 @@ argsP = (SingleQuote <$> sqStringValArgP) <|> (DoubleQuote <$> dqStringValArgP)
 -- | parses unallowed strs in quotes
 errorStrParser :: Parser String
 errorStrParser =
-  constP ">>" "<singleQuote>" -- single quote
-  <|> constP "\\'" "<escape>" <* satisfy isAlpha
-  <|> constP "~/" "<tilde>"
+  -- constP ">>" "<singleQuote>" -- single quote
+  -- constP "\\'" "<escape>" <* satisfy isAlpha
+  constP "~/" "<tilde>"
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 
--- >>> parse execCommandP "echo \"hi hello\""
--- Right (ExecCommand (ExecName "echo") [DoubleQuote [Arg "hi",Arg "hello"]])
-
+-- >>> parse execCommandP "echo \"\\'\""
+-- Left "\"\\'\""
 -- >>> parse sqStringValP "'hi'"
--- Left "No parses"
+-- Right "hi"
 
 -- >>> parse execCommandP "ls -l -a w$few wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "w$few",Arg "wefjkl"])
