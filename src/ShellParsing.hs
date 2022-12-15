@@ -212,14 +212,21 @@ execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 -- >>> parse execCommandP "&& -l -a"
 -- Left "No parses"
 
-conditionalParser :: Parser BashCommand
-conditionalParser =
-  Conditional <$> (wsP (string "if [") *> wsP expP <* string "]")
+conditionalP :: Parser BashCommand
+conditionalP =
+-- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+  Conditional <$> (wsP (string "if [") *> wsP blockP <* string "]")
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
+-- >>> parse ((wsP (string "then") *> wsP blockP)) "\nthen\n  x=2"
+
+
+-- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
+-- Right (Block [Assign (V "y") (Val (IntVal 1))])
+
 bashCommandP :: Parser BashCommand
-bashCommandP = assignP <|> possibleAssignP <|> execCommandP 
+bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP 
 
 variableRef :: Parser String
 variableRef = (:) <$> char '$' *> word
@@ -262,14 +269,18 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
- {- File parser -}
-parseLuFile :: String -> IO (Either String Block)
-parseLuFile = parseFromFile (const <$> blockP <*> eof)
+ {- Script parser -}
+parseShellScript :: String -> IO (Either String Block)
+parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
--- >>> 
+-- How it looks : "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- >>> parseShellScript "test/conditional.sh"
+-- Left "No parses"
 
+
+p :: String -> Block -> IO ()
 p fn ast = do
-  result <- parseLuFile fn
+  result <- parseShellScript fn
   case result of
     (Left _) -> assert False
     (Right ast') -> assert (ast == ast')

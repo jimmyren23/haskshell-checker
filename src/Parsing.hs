@@ -98,6 +98,7 @@ digit = satisfy isDigit
 upper = satisfy isUpper
 lower = satisfy isLower
 space = satisfy isSpace
+newline = satisfy (== '\n')
 
 -- | Parses and returns the specified character
 -- succeeds only if the input is exactly that character
@@ -148,7 +149,7 @@ sepBy1 :: Parser a -> Parser sep -> Parser [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)
 
 wsP :: Parser a -> Parser a
-wsP p = p <* many space
+wsP p = p <* many (space <|> newline)
 
 stringP :: String -> Parser ()
 stringP s = wsP (string s) *> pure ()
@@ -161,6 +162,24 @@ eof = P $ \s -> case s of
   [] -> Just ((), [])
   _ : _ -> Nothing
 
+
+try1 :: FilePath -> IO String
+try1 filename = do
+  handle <- IO.openFile filename IO.ReadMode
+  IO.hGetContents handle
+
+
+-- >>> try1 "test/conditional.sh"
+-- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+
+
+-- Ambiguous occurrence ‘test’
+-- It could refer to
+--    either ‘Test.HUnit.test’,
+--           imported from ‘Test.HUnit’ at /Users/acelynchoi/Downloads/cis552/haskshell-checker/src/Parsing.hs:22:1-17
+--           (and originally defined in ‘Test.HUnit.Base’)
+--        or ‘Parsing.test’,
+--           defined at /Users/acelynchoi/Downloads/cis552/haskshell-checker/src/Parsing.hs:166:1
 
 {- File parsers -}
 
@@ -175,3 +194,5 @@ parseFromFile parser filename = do
     ( \e ->
         pure $ Left $ "Error:" ++ show e
     )
+
+
