@@ -41,6 +41,8 @@ instance PP Command where
 
 instance PP Arg where
   pp (Arg arg) = PP.text arg
+  pp (SingleQuote args) = PP.text "\'" <> PP.sep [pp arg | arg <- args] <> PP.text "\'"
+  pp (DoubleQuote args) = PP.text "\"" <> PP.sep [pp arg | arg <- args] <> PP.text "\""
 
 instance PP Value where
   pp (IntVal i) = pp i

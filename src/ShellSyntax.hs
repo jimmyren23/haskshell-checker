@@ -16,11 +16,14 @@ type Token = String
 
 type NameToken = String
 
-newtype Arg = Arg String
-  deriving (Eq, Show)
-
 newtype Var = V String
   deriving (Eq, Ord, Show)
+
+data Arg 
+  = Arg String
+  | SingleQuote [Arg]
+  | DoubleQuote [Arg]
+  deriving (Eq, Show)
 
 data Expression
   = Var Var -- global variables x and table indexing

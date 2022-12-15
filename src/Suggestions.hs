@@ -1,6 +1,7 @@
 module Suggestions where
 
 import Checker qualified as C
+import Control.Applicative
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -49,11 +50,12 @@ evalLine s = do
     Left err -> throwError $ errorS err
     Right bc -> do
       oldHistory <- State.get
-      case C.checkUnassignedVar bc oldHistory of
-        Left err -> throwError $ errorS err
-        Right _ -> do
-          updHistory bc s
-          return bc
+      let res = C.checkUnassignedVar bc oldHistory in
+        case res of
+          Left err -> throwError $ errorS err
+          Right _ -> do
+            updHistory bc s
+            return bc
 
 evalAllLines :: (MonadError String m, MonadState (Map Var (String, Bool)) m) => [String] -> m BashCommand
 evalAllLines [x] = do
@@ -89,13 +91,12 @@ goExStAll (x : xs) =
     & showEx (showSt show)
 goExStAll [] = ""
 
--- >>> goExStAll ["x=3", "y=4", "echo $y"]
--- "Result: ExecCommand (ExecName \"echo\") [Arg \"$y\"], map: fromList [(V \"x\",Val (IntVal 3)),(V \"y\",Val (IntVal 4))]"
+-- >>> goExStAll ["x = 7", "y=10", "echo $y"]
+-- "Raise: Error: Unable to Parse Command \"No parses\""
 
--- >>> goExStAll ["$x= 3", "y=4", "echo $x", "echo $y"]
--- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x= 3? It was used later in: echo $x\""
+-- >>> goExStAll ["x =3", "echo \'hi $x\'"]
+-- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x =3? It was used later in: echo 'hi $x'\""
 
-goStEx :: String -> String
 goStEx e =
   evalLine e -- :: ExceptT String (StateT Int Identity) Int
     & runExceptT

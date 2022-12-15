@@ -26,8 +26,28 @@ checkEscapeQuote :: Value -> Either String Value
 checkEscapeQuote = undefined
 
 -- | Checks if variables are used in single quotes
-checkVarInSingleQuotes :: Value -> Either String Value
-checkVarInSingleQuotes = undefined
+-- checkVarInSingleQuotes :: [Arg] -> Map Var (String, Bool) -> BashCommand -> Either String [Arg]
+-- checkVarInSingleQuotes (x1 : xs) history cmd =
+--   case x1 of
+--     Arg x ->
+--       case parse S.variableRef x of
+--         Left error -> Left ("Error: " ++ error)
+--         Right possVar ->
+--           let var = V possVar
+--             in case Map.lookup var history of
+--                 Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+--                 Just (s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
+--                 Just _ -> do
+--                   args <- checkVarInSingleQuotes xs history cmd
+--                   return (Arg x : args)
+--     SingleQuote (a : as) ->
+--       case parse S.variableRef a of
+--         Left error -> checkVarInSingleQuotes xs history cmd
+--         Right possVar -> Left "Variables aren't allowed in single quotes"
+--     _ -> checkVarInSingleQuotes xs history cmd
+
+-- checkVarInSingleQuotes [] _  _ = Right []
+
 
 {- Conditionals -}
 
@@ -162,16 +182,43 @@ checkUnusedVar = undefined
 -- | 2. Different types of possible assign
 -- | 3. Store = as part of var string
 checkArg :: [Arg] -> Map Var (String, Bool) -> BashCommand -> Either String [Arg]
-checkArg (Arg x : xs) history cmd = case parse S.variableRef x of
-  Left error -> Left ("Error: " ++ error)
-  Right possVar ->
-    let var = V possVar
-     in case Map.lookup var history of
-          Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-          Just (s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
-          Just _ -> do
-            args <- checkArg xs history cmd
-            return (Arg x : args)
+checkArg (x : xs) history cmd = 
+  case x of
+    Arg a -> 
+      case parse S.variableRef a of
+      Left error -> Left ("Error: " ++ error)
+      Right possVar ->
+        let var = V possVar
+        in case Map.lookup var history of
+              Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+              Just (s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
+              Just _ -> do
+                args <- checkArg xs history cmd
+                return (x : args)
+    SingleQuote (arg : as) ->
+      let Arg a = arg in
+         case parse S.variableRef a of
+          Left error -> 
+            do 
+              checkArg as history cmd
+              args <- checkArg xs history cmd
+              return (x : args)
+          _ -> Left "Variables cannot be used inside single quotes."
+    DoubleQuote (arg : as) -> 
+      let Arg a = arg in
+        case parse S.variableRef a of
+          Left error -> Left ("Error: " ++ error)
+          Right possVar ->
+            let var = V possVar
+            in case Map.lookup var history of
+                  Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+                  Just (s, False) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
+                  Just _ -> 
+                     do 
+                      checkArg as history cmd
+                      args <- checkArg xs history cmd
+                      return (x : args)
+    _ -> checkArg xs history cmd
 checkArg [] _  _ = Right []
 
 -- | Checks if undefined variables are being used

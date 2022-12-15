@@ -73,11 +73,37 @@ boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 nilValP :: Parser Value
 nilValP = wsP (constP "nil" NilVal)
 
-inner :: Parser String
-inner = many (satisfy (/= '\"'))
+-- | Since ' can be used in double quoted string and vice versa, inner has to be defined separately
+
+innerDq :: Parser String
+innerDq = many (satisfy (/= '\"'))
+
+innerSq :: Parser String
+innerSq = many (satisfy (/= '\''))
+
+-- | Double quoted string
+dqStringValP :: Parser String
+dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
+
+-- | Single quoted string
+sqStringValP :: Parser String
+sqStringValP = between (char '\'') innerSq (wsP (char '\''))
+
+
+-- | Double quoted string
+dqStringValArgP :: Parser [Arg]
+dqStringValArgP = between (char '\"') (many (Arg <$> errorStrParser <|> argP)) (wsP (char '\"'))
+
+-- | Single quoted string
+sqStringValArgP :: Parser [Arg]
+sqStringValArgP = between (char '\'') (many (Arg <$> errorStrParser <|> argP)) (wsP (char '\''))
+
+
+-- >>> parse sqStringValArgP "\'\\'klj\'"
+-- Right [Arg "<escape>",Arg "lj"]
 
 stringValP :: Parser Value
-stringValP = StringVal <$> between (char '\"') inner (wsP (char '\"'))
+stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
 -- | parses different values
 valueP :: Parser Value
@@ -121,11 +147,14 @@ wsAssignP = PossibleAssign <$> wsP (V <$> name) <* wsP (char '=') <*> wsP expP
 dsAssignP :: Parser BashCommand
 dsAssignP =  stringP "$" *> wsAssignP
 
--- >>> parse possibleAssignP "\"a\"= 10"
--- Left "No parses"
+
+
+-- >>> parse possibleAssignP "a = 10"
+-- Right (PossibleAssign (V "a") (Val (IntVal 10)))
 
 -- >>> parse possibleAssignP "$a=7"
 
+-- Right (PossibleAssign (V "a") (Val (IntVal 7)))
 -- >>> parse possibleAssignP "a =3"
 -- Right (PossibleAssign (V "a") (Val (IntVal 3)))
 
@@ -149,16 +178,29 @@ commandP = ExecName <$> wsP (filter isSpecial name)
   where
     isSpecial = not . (`elem` reserved ++ operators)
 
-argsP :: Parser [Arg]
-argsP = many (Arg <$> wsP word)
+-- | parses single word as an arg
+argP :: Parser Arg
+argP = Arg <$> wsP word
+
+
+-- | parses quoted string as an arg
+argsP :: Parser Arg
+argsP = (SingleQuote <$> sqStringValArgP) <|> (DoubleQuote <$> dqStringValArgP)
+
+-- | parses unallowed strs in quotes
+errorStrParser :: Parser String
+errorStrParser =
+  constP ">>" "<singleQuote>" -- single quote
+  <|> constP "\\'" "<escape>" <* satisfy isAlpha
+  <|> constP "~/" "<tilda>"
 
 execCommandP :: Parser BashCommand
-execCommandP = ExecCommand <$> commandP <*> argsP
+execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 
--- >>> parse execCommandP "file >>> -l"
--- Right (ExecCommand (ExecName "file") [Arg ">>>",Arg "-l"])
+-- >>> parse execCommandP "echo $x"
+-- Right (ExecCommand (ExecName "echo") [Arg "$x"])
 
--- >>> parse execCommandP "$ls -l"
+-- >>> parse sqStringValP "'hi'"
 -- Left "No parses"
 
 -- >>> parse execCommandP "ls -l -a w$few wefjkl"
@@ -182,6 +224,8 @@ variableRef = (:) <$> char '$' *> word
 -- >>> parse variableRef "$xfwejklfj"
 -- Right "xfwejklfj"
 
+
+
 -- >>> parse variableRef "$xewf\""
 -- Left "\""
 
@@ -200,8 +244,8 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 -- >>> parse bashCommandP "x = 3"
 -- Right (PossibleAssign (V "x") (Val (IntVal 3)))
 
--- >>> parse bashCommandP "ls -l"
--- Right (ExecCommand (ExecName "ls") [Arg "-l"])
+-- >>> parse bashCommandP "echo '$hi'"
+-- Left "'$hi'"
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])
