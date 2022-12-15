@@ -27,17 +27,23 @@ checkQuotedTildeExpansionArgs :: BashCommand -> [Arg] -> Either String BashComma
 checkQuotedTildeExpansionArgs cmd args =
   case args of
     [] -> Right cmd
-    (a : as) -> 
+    (a : as) ->
       case a of
-        Arg x -> if x == "<tilde>" then Left "Tilde expansion can't be used in strings" else checkQuotedTildeExpansionArgs cmd as
-        SingleQuote args2 -> do
-          checkQuotedTildeExpansionArgs cmd args2
+        Arg x -> checkQuotedTildeExpansionArgs cmd as
+        SingleQuote tokens -> do
+          checkQuotedTildeExpansionTokens cmd tokens
           args <- checkQuotedTildeExpansionArgs cmd as
           return cmd
-        DoubleQuote args2 -> do
-          checkQuotedTildeExpansionArgs cmd args2
+        DoubleQuote tokens -> do
+          checkQuotedTildeExpansionTokens cmd tokens
           args <- checkQuotedTildeExpansionArgs cmd as
           return cmd
+
+checkQuotedTildeExpansionTokens :: BashCommand -> [Token] -> Either String BashCommand
+checkQuotedTildeExpansionTokens cmd tokens =
+  case tokens of
+    [] -> Right cmd
+    (t : ts) -> if t == "<tilde>" then Left "Tilde expansion can't be used in strings" else checkQuotedTildeExpansionTokens cmd ts
 
 -- | Checks if single quotes are closed by apostrophe
 checkSingleQuoteApostrophe :: Value -> Either String Value
@@ -46,30 +52,6 @@ checkSingleQuoteApostrophe = undefined
 -- | Checks if apostrophe is escaped inside single quotes
 checkEscapeQuote :: Value -> Either String Value
 checkEscapeQuote = undefined
-
--- | Checks if variables are used in single quotes
--- checkVarInSingleQuotes :: [Arg] -> Map Var (String, Bool) -> BashCommand -> Either String [Arg]
--- checkVarInSingleQuotes (x1 : xs) history cmd =
---   case x1 of
---     Arg x ->
---       case parse S.variableRef x of
---         Left error -> Left ("Error: " ++ error)
---         Right possVar ->
---           let var = V possVar
---             in case Map.lookup var history of
---                 Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
---                 Just (s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
---                 Just _ -> do
---                   args <- checkVarInSingleQuotes xs history cmd
---                   return (Arg x : args)
---     SingleQuote (a : as) ->
---       case parse S.variableRef a of
---         Left error -> checkVarInSingleQuotes xs history cmd
---         Right possVar -> Left "Variables aren't allowed in single quotes"
---     _ -> checkVarInSingleQuotes xs history cmd
-
--- checkVarInSingleQuotes [] _  _ = Right []
-
 
 {- Conditionals -}
 
@@ -199,27 +181,41 @@ checkStringNumericalComparison = undefined -- \$# retrives # of params passed in
 checkUnusedVar :: BashCommand -> Either String Command
 checkUnusedVar = undefined
 
-checkVarInSingleQuotes :: Arg -> Either String [Arg]
-checkVarInSingleQuotes arg@(Arg a) = 
-  case parse S.variableRef a of
-        Left error -> Right [arg]
+checkVarInSingleQuotes :: Token -> Either String [Token]
+checkVarInSingleQuotes t =
+  case parse S.variableRef t of
+        Left error -> Right [t]
         Right _ -> Left "Variables cannot be used inside single quotes."
-checkVarInSingleQuotes _ = Right []
 
 -- checkEscapeInSingleQuotes :: Arg -> Either String [Arg]
 -- checkEscapeInSingleQuotes arg@(Arg a) = 
 --   if a == "\'" then Left "Escape cannot be used in single quotes" else Right [arg]
 -- checkEscapeInSingleQuotes _ = Right []
 
-checkArgSingleQuotes :: [Arg] -> Map Var (String, Bool) -> Either String [Arg]
-checkArgSingleQuotes (arg : args) history =
-  let res = checkVarInSingleQuotes arg in
+checkArgSingleQuotes :: [Token] -> Map Var (String, Bool) -> Either String [Token]
+checkArgSingleQuotes (t : tokens) history =
+  let res = checkVarInSingleQuotes t in
     case res of
       Left err -> Left err
-      Right arg -> do
-        args2 <- checkArgSingleQuotes args history
-        return (arg ++ args2)
+      Right tt -> do
+        tokenss <- checkArgSingleQuotes tokens history
+        return (tt ++ tokenss)
 checkArgSingleQuotes [] _  = Right []
+
+checkArgDoubleQuotes :: [Token] -> Map Var (String, Bool) -> BashCommand -> Either String [Token]
+checkArgDoubleQuotes (t : tokens) history cmd = 
+   case parse S.variableRef t of
+          Left error -> Left ("Error: " ++ error)
+          Right possVar ->
+            let var = V possVar
+            in case Map.lookup var history of
+                  Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+                  Just (s, False) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
+                  Just _ ->
+                     do
+                      tokenss <- checkArgDoubleQuotes tokens history cmd
+                      return (t : tokenss)
+checkArgDoubleQuotes [] _ _  = Right []       
 
 
 -- | How to print original command for possible assigns?
@@ -227,9 +223,9 @@ checkArgSingleQuotes [] _  = Right []
 -- | 2. Different types of possible assign
 -- | 3. Store = as part of var string
 checkArg :: [Arg] -> Map Var (String, Bool) -> BashCommand -> Either String [Arg]
-checkArg (x : xs) history cmd = 
+checkArg (x : xs) history cmd =
   case x of
-    Arg a -> 
+    Arg a ->
       case parse S.variableRef a of
       Left error -> Left ("Error: " ++ error)
       Right possVar ->
@@ -240,22 +236,14 @@ checkArg (x : xs) history cmd =
               Just _ -> do
                 args <- checkArg xs history cmd
                 return (x : args)
-    SingleQuote args -> checkArgSingleQuotes args history
-    DoubleQuote (arg : as) -> 
-      let Arg a = arg in
-        case parse S.variableRef a of
-          Left error -> Left ("Error: " ++ error)
-          Right possVar ->
-            let var = V possVar
-            in case Map.lookup var history of
-                  Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-                  Just (s, False) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
-                  Just _ -> 
-                     do 
-                      checkArg as history cmd
-                      args <- checkArg xs history cmd
-                      return (x : args)
-    _ -> checkArg xs history cmd
+    SingleQuote tokens -> do
+      checkArgSingleQuotes tokens history
+      args <- checkArg xs history cmd
+      return (x : args)
+    DoubleQuote tokens -> do
+      checkArgDoubleQuotes tokens history cmd
+      args <- checkArg xs history cmd
+      return (x : args)
 checkArg [] _  _ = Right []
 
 -- | Checks if undefined variables are being used

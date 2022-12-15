@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE InstanceSigs #-}
 
 {-# HLINT ignore "Use lambda-case" #-}
 {-# HLINT ignore "Use $>" #-}

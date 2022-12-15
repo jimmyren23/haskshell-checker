@@ -51,7 +51,7 @@ eitherOp (Right cmd) _  = Right cmd
 evalLine :: (MonadError String m, MonadState (Map Var (String, Bool)) m) => String -> m BashCommand
 evalLine s = do
   let res = parse S.bashCommandP s
-  case res of
+  case res of 
     Left err -> throwError $ errorS err
     Right bc -> do
       oldHistory <- State.get
@@ -100,7 +100,7 @@ goExStAll [] = ""
 -- "Raise: Error: Unable to Parse Command \"No parses\""
 
 -- >>> goExStAll ["x = 3", "echo \"$x\""]
--- "Raise: Error: Unable to Parse Command \"Did you mean to assign variable x  when you wrote: x = 3? It was used later in: echo \\\"$x\\\"\""
+-- "Raise: Error: Unable to Parse Command \"Variables cannot be used inside single quotes.\""
 
 
 goStEx e =

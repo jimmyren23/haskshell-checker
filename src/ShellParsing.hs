@@ -73,34 +73,41 @@ boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 nilValP :: Parser Value
 nilValP = wsP (constP "nil" NilVal)
 
--- | Since ' can be used in double quoted string and vice versa, inner has to be defined separately
+{- Parsers for quoted strings -}
 
+-- | parses unallowed tokens in quotes
+errorStrParser :: Parser String
+errorStrParser =
+  -- constP "\'" "<singleQuote>" -- single quote
+  constP "\\'" "<escape>"
+  <|> constP "~" "<tilde>"
+--
+-- Since ' can be used in double quoted string and vice versa, inner has to be defined separately
+--
 innerDq :: Parser String
 innerDq = many (satisfy (/= '\"'))
 
 innerSq :: Parser String
 innerSq = many (satisfy (/= '\''))
 
--- | Double quoted string
+-- | Double quoted string - extracts out pure string only
 dqStringValP :: Parser String
 dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
 
--- | Single quoted string
+-- | Double quoted string - parses tokens that aren't allowed as well
+dqStringValErrP :: Parser [Token]
+dqStringValErrP = between (char '\"') (many (errorStrParser <|> wsP word)) (wsP (char '\"'))
+
+-- | Single quoted string - extracts out pure string only
 sqStringValP :: Parser String
 sqStringValP = between (char '\'') innerSq (wsP (char '\''))
 
+-- | Single quoted string - parses tokens that aren't allowed as well
+sqStringValErrP :: Parser [Token]
+sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (wsP (char '\''))
 
--- | Double quoted string
-dqStringValArgP :: Parser [Arg]
-dqStringValArgP = between (char '\"') (many (Arg <$> errorStrParser <|> argP)) (wsP (char '\"'))
-
--- | Single quoted string
-sqStringValArgP :: Parser [Arg]
-sqStringValArgP = between (char '\'') (many (Arg <$> errorStrParser <|> argP)) (wsP (char '\''))
-
-
--- >>> parse sqStringValArgP "\'\\'klj\'"
--- Right [Arg "<escape>",Arg "lj"]
+-- >>> parse sqStringValErrP "\'~ $x\'"
+-- Right ["<tilde>","$x"]
 
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
@@ -182,17 +189,9 @@ commandP = ExecName <$> wsP (filter isSpecial name)
 argP :: Parser Arg
 argP = Arg <$> wsP word
 
-
 -- | parses quoted string as an arg
 argsP :: Parser Arg
-argsP = (SingleQuote <$> sqStringValArgP) <|> (DoubleQuote <$> dqStringValArgP)
-
--- | parses unallowed strs in quotes
-errorStrParser :: Parser String
-errorStrParser =
-  -- constP ">>" "<singleQuote>" -- single quote
-  -- constP "\\'" "<escape>" <* satisfy isAlpha
-  constP "~/" "<tilde>"
+argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)

@@ -21,8 +21,8 @@ newtype Var = V String
 
 data Arg 
   = Arg String
-  | SingleQuote [Arg]
-  | DoubleQuote [Arg]
+  | SingleQuote [Token]
+  | DoubleQuote [Token]
   deriving (Eq, Show)
 
 data Expression
