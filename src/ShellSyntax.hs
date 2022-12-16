@@ -4,7 +4,7 @@ import Text.PrettyPrint (Doc, (<+>))
 
 data BashCommand
   = ExecCommand Command [Arg]
-  | PossibleAssign Var Expression 
+  | PossibleAssign PossibleAssign
   | Conditional Expression Block Block
   | Assign Var Expression
   deriving (Eq, Show)
@@ -14,10 +14,17 @@ newtype Command = ExecName String
 
 type Token = String
 
+type Equal = String
+
 type NameToken = String
 
 newtype Var = V String
   deriving (Eq, Ord, Show)
+
+data PossibleAssign 
+  = PossibleAssignWS Var String Equal String Expression -- extra spaces
+  | PossibleAssignDS Var Equal Expression -- $
+  deriving (Eq, Show)
 
 data Arg 
   = Arg String

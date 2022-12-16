@@ -26,15 +26,19 @@ import System.IO qualified as IO
 import System.IO.Error qualified as IO
 
 -- | Action that updates the state
-updHistory :: MonadState (Map Var (String, Bool)) m => BashCommand -> String -> m ()
-updHistory bc s = case bc of
-  PossibleAssign var ex -> do
+updHistory :: MonadState (Map Var BashCommand) m => BashCommand -> m ()
+updHistory bc = case bc of
+  PossibleAssign pa@(PossibleAssignWS var _ eq _ exp)-> do
     oldHistory <- State.get
-    let newHistory = Map.insert var (s, False) oldHistory
+    let newHistory = Map.insert var bc oldHistory
+    put newHistory
+  PossibleAssign pa@(PossibleAssignDS var eq exp)-> do
+    oldHistory <- State.get
+    let newHistory = Map.insert var bc oldHistory
     put newHistory
   Assign var ex -> do
     oldHistory <- State.get
-    let newHistory = Map.insert var (s, True) oldHistory
+    let newHistory = Map.insert var bc oldHistory
     put newHistory
   _ -> do
     return ()
@@ -43,7 +47,7 @@ updHistory bc s = case bc of
 errorS :: Show a => a -> String
 errorS cmd = "Error: Unable to Parse Command " ++ show cmd
 
-evalLine :: (MonadError String m, MonadState (Map Var (String, Bool)) m) => String -> m BashCommand
+evalLine :: (MonadError String m, MonadState (Map Var BashCommand) m) => String -> m BashCommand
 evalLine s = do
   let res = parse S.bashCommandP s
   case res of 
@@ -54,10 +58,10 @@ evalLine s = do
         case res of
           Left err -> throwError $ errorS err
           Right _ -> do
-            updHistory bc s
+            updHistory bc
             return bc
 
-evalAllLines :: (MonadError String m, MonadState (Map Var (String, Bool)) m) => [String] -> m BashCommand
+evalAllLines :: (MonadError String m, MonadState (Map Var BashCommand) m) => [String] -> m BashCommand
 evalAllLines [x] = do
   evalLine x
 evalAllLines (x : xs) = do
@@ -65,7 +69,7 @@ evalAllLines (x : xs) = do
   evalAllLines xs
 evalAllLines [] = undefined
 
-showSt :: (a -> String) -> (a, Map Var (String, Bool)) -> String
+showSt :: (a -> String) -> (a, Map Var BashCommand) -> String
 showSt f (v, map) = f v ++ ", map: " ++ show map
 
 -- | Show the result of runExceptT, parameterized by a function
@@ -91,13 +95,50 @@ goExStAll (x : xs) =
     & showEx (showSt show)
 goExStAll [] = ""
 
--- >>> goExStAll ["x = 7", "y=10", "echo $y"]
--- "Result: ExecCommand (ExecName \"echo\") [Arg \"$y\"], map: fromList [(V \"x\",(\"x = 7\",False)),(V \"y\",(\"y=10\",True))]"
+evalBashLine :: (MonadError String m, MonadState (Map Var BashCommand) m) => BashCommand -> m BashCommand
+evalBashLine bc = do
+  oldHistory <- State.get
+  let res = C.checkExecCommandArgs bc oldHistory in
+    case res of
+      Left err -> throwError $ errorS err
+      Right _ -> do
+        updHistory bc
+        return bc 
 
--- >>> goExStAll ["$x= 3", "echo \"\""]
--- "Raise: Error: Unable to Parse Command \"Error: No parses\""
+evalAllBashLines :: (MonadError String m, MonadState (Map Var BashCommand) m) => [BashCommand] -> m BashCommand
+evalAllBashLines [x] = do
+  evalBashLine x
+evalAllBashLines (x : xs) = do
+  evalBashLine x
+  evalAllBashLines xs
+evalAllBashLines [] = undefined
 
--- >>> doParse S.bashCommandP "echo \"~\""
+evalAll :: [BashCommand] -> String
+evalAll bcs =
+  evalAllBashLines bcs -- :: StateT Int (ExceptT String Identity) Int
+    & flip runStateT Map.empty
+    & runExceptT
+    & runIdentity
+    & showEx (showSt show)
+
+
+evalScript :: String -> IO ()
+evalScript filename = do
+  res <- parseShellScript filename
+  case res of
+    Left err -> print (errorS err)
+    Right (Block bcs) -> print (evalAll bcs)
+
+-- >>> parseShellScript "test/conditional.sh"
+-- Right (Block [PossibleAssign (PossibleAssignWS (V "y") "" "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
+
+
+-- >>> goExStAll ["echo $x"]
+
+-- >>> goExStAll ["x=3", "echo $x"]
+-- "Result: ExecCommand (ExecName \"echo\") [Arg \"$x\"], map: fromList [(V \"x\",Assign (V \"x\") (Val (IntVal 3)))]"
+
+-- Just (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]],"")
 -- Just (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]],"")
 
 goStEx e =

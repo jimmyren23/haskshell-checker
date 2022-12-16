@@ -58,7 +58,7 @@ firstJust :: Maybe a -> Maybe a -> Maybe a
 firstJust (Just x) _ = Just x
 firstJust Nothing y = y
 
-newtype History = History (Map Var (String, Bool))
+newtype History = History (Map Var BashCommand)
 
 -- | Filter the parsing results by a predicate
 filter :: (a -> Bool) -> Parser a -> Parser a
@@ -173,14 +173,6 @@ try1 filename = do
 -- "if [y < 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
 
--- Ambiguous occurrence ‘test’
--- It could refer to
---    either ‘Test.HUnit.test’,
---           imported from ‘Test.HUnit’ at /Users/acelynchoi/Downloads/cis552/haskshell-checker/src/Parsing.hs:22:1-17
---           (and originally defined in ‘Test.HUnit.Base’)
---        or ‘Parsing.test’,
---           defined at /Users/acelynchoi/Downloads/cis552/haskshell-checker/src/Parsing.hs:166:1
-
 {- File parsers -}
 
 parseFromFile :: Parser a -> String -> IO (Either String a)
@@ -194,5 +186,7 @@ parseFromFile parser filename = do
     ( \e ->
         pure $ Left $ "Error:" ++ show e
     )
+
+
 
 

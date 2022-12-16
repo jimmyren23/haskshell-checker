@@ -33,8 +33,8 @@ name = (:) <$> startOfName <*> many restOfName
 bopP :: Parser Bop
 bopP =
   choice
-  
-    [ 
+
+    [
 
       constP "-gt" Gt,
       constP "-lt" Lt,
@@ -145,6 +145,7 @@ expP = compP
 assignP :: Parser BashCommand
 assignP = (Assign . V <$> name) <*> (char '=' *> expP)
 
+
 test_assign :: Test
 test_assign =
   TestList
@@ -158,21 +159,24 @@ test_assign =
 -- Right (Val (IntVal 31))
 
 possibleAssignP :: Parser BashCommand
-possibleAssignP = wsAssignP <|> dsAssignP
+possibleAssignP = PossibleAssign <$> (wsAssignP <|> dsAssignP)
 
-wsAssignP :: Parser BashCommand
-wsAssignP = PossibleAssign <$> wsP (V <$> name) <* wsP (char '=') <*> wsP expP
+
+-- | Parses var with whitespaces (retains them, too)
+wsAssignP :: Parser PossibleAssign
+wsAssignP = PossibleAssignWS <$> (V <$> name) <*> many (char ' ') <*> string "=" <*> many (char ' ') <*> wsP expP
 
 -- | Parses assignments with $ in front of var name
-dsAssignP :: Parser BashCommand
-dsAssignP =  stringP "$" *> wsAssignP
+dsAssignP :: Parser PossibleAssign
+dsAssignP =  PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
 
 
+-- >>> parse possibleAssignP "a =1"
+-- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
 
--- >>> parse possibleAssignP "a = 10"
--- Right (PossibleAssign (V "a") (Val (IntVal 10)))
 
 -- >>> parse possibleAssignP "$a=7"
+-- Left "No parses"
 
 -- Right (PossibleAssign (V "a") (Val (IntVal 7)))
 -- >>> parse possibleAssignP "a =3"
@@ -223,6 +227,13 @@ execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
 -- >>> parse execCommandP "&& -l -a"
 -- Left "No parses"
 
+conditionalStrP :: Parser String
+conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
+
+
+-- >>> parse conditionalStrP "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- Left "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+
 conditionalP :: Parser BashCommand
 conditionalP =
 -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
@@ -238,7 +249,7 @@ conditionalP =
 -- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
 
 bashCommandP :: Parser BashCommand
-bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP 
+bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 
 variableRef :: Parser Var
 variableRef = V <$> (char '$' *> wsP word)
@@ -283,17 +294,29 @@ blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
  {- Script parser -}
-parseShellScript :: String -> IO (Either String Block)
+parseShellScript :: String -> IO (Either ParseResult Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
+word2 :: Parser String
+word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
+
+-- newlineP :: Parser String
+-- newlineP = 
+
+-- >>> parse newlineP "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- Left "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+
 -- How it looks : "if [y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+
+-- >>> parse expP "1"
+-- Right (Val (IntVal 1))
 
 
 -- >>> parse expP "$y < 1"
 -- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
 
 -- >>> parseShellScript "test/conditional.sh"
--- Right (Block [Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
+-- Right (Block [Assign (V "y") (Val (IntVal 1)),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
 
 p :: String -> Block -> IO ()
 p fn ast = do

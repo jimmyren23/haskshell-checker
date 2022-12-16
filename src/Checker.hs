@@ -162,7 +162,7 @@ checkEscapeInSingleQuotes :: Token -> Either String [Token]
 checkEscapeInSingleQuotes t = 
   if t == "<escape>" then Left "Escape cannot be used in single quotes" else Right [t]
 
-checkArgSingleQuotes :: [Token] -> Map Var (String, Bool) -> Either String [Token]
+checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either String [Token]
 checkArgSingleQuotes (t : tokens) history =
   let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t in
     case res of
@@ -172,7 +172,7 @@ checkArgSingleQuotes (t : tokens) history =
         return (tt ++ tokenss)
 checkArgSingleQuotes [] _  = Right []
 
-checkArgDoubleQuotes :: [Token] -> Map Var (String, Bool) -> BashCommand -> Either String [Token]
+checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
 checkArgDoubleQuotes (t : tokens) history cmd = 
    case parse S.variableRef t of
           Left error -> Left ("Error: " ++ error)
@@ -180,7 +180,7 @@ checkArgDoubleQuotes (t : tokens) history cmd =
             let V possVar = var
             in case Map.lookup var history of
                   Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-                  Just (s, False) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
+                  Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                   Just _ ->
                      do
                       tokenss <- checkArgDoubleQuotes tokens history cmd
@@ -192,7 +192,7 @@ checkArgDoubleQuotes [] _ _  = Right []
 -- | 1. Store in history map as a string in its original form
 -- | 2. Different types of possible assign
 -- | 3. Store = as part of var string
-checkArg :: [Arg] -> Map Var (String, Bool) -> BashCommand -> Either String [Arg]
+checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either String [Arg]
 checkArg (x : xs) history cmd =
   case x of
     Arg a ->
@@ -202,7 +202,7 @@ checkArg (x : xs) history cmd =
         let V possVar = var
         in case Map.lookup var history of
               Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-              Just (s, False) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ s ++ "? It was used later in: " ++ pretty cmd)
+              Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
               Just _ -> do
                 args <- checkArg xs history cmd
                 return (x : args)
@@ -216,11 +216,14 @@ checkArg (x : xs) history cmd =
       return (x : args)
 checkArg [] _  _ = Right []
 
-checkExecCommandArgs :: BashCommand -> Map Var (String, Bool) -> Either String BashCommand
+checkExecCommandArgs :: BashCommand -> Map Var BashCommand -> Either String BashCommand
 checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   args <- checkArg (x : xs) history command
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
+
+-- checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"

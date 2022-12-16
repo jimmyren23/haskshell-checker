@@ -1,7 +1,2 @@
-$y=1
-if [$y -lt 1] 
-then
-  x=2
-else
-  x=3
-fi
+y= 1
+echo $y
