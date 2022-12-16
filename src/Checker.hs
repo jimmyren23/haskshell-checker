@@ -48,13 +48,6 @@ checkQuotedRegex = undefined
 checkUnsupportedOperators :: Expression -> Either String Expression
 checkUnsupportedOperators = undefined
 
--- | Check if strings and numbers are being compared
-checkNumericalStrComparison :: Expression -> Either String Expression
-checkNumericalStrComparison = undefined
-
--- | Checks that && is not used inside [] statement
-checkAnd :: Expression -> Either String Expression
-checkAnd = undefined
 
 -- | Checks if test operators are used in ((..))
 checkTestOperators :: Expression -> Either String Expression
@@ -80,13 +73,15 @@ checkRedirectionInFind = undefined
 
 {- Beginner Mistakes -}
 
--- | Checks if dollar sign is present in assignments
-checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
-checkDollarSignInAssignments = undefined
+-- DONE
+-- -- | Checks if dollar sign is present in assignments
+-- checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
+-- checkDollarSignInAssignments = undefined
 
--- | Cheecks if elements in array are separated by commas
-checkCommaSeparatedArrays :: BashCommand -> Either String BashCommand
-checkCommaSeparatedArrays = undefined
+-- DONE
+-- -- | Cheecks if elements in array are separated by commas
+-- checkCommaSeparatedArrays :: BashCommand -> Either String BashCommand
+-- checkCommaSeparatedArrays = undefined
 
 -- | Checks if 'else if' is used
 checkElseIf :: BashCommand -> Either String BashCommand
@@ -155,7 +150,7 @@ checkVarInSingleQuotes t =
         Right _ -> Left "Variables cannot be used inside single quotes."
 
 checkEscapeInSingleQuotes :: Token -> Either String [Token]
-checkEscapeInSingleQuotes t = 
+checkEscapeInSingleQuotes t =
   if t == "<escape>" then Left "Escape cannot be used in single quotes" else Right [t]
 
 checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either String [Token]
@@ -169,7 +164,7 @@ checkArgSingleQuotes (t : tokens) history =
 checkArgSingleQuotes [] _  = Right []
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
-checkArgDoubleQuotes (t : tokens) history cmd = 
+checkArgDoubleQuotes (t : tokens) history cmd =
    case parse S.variableRef t of
           Left error -> Left ("Error: " ++ error)
           Right var ->
@@ -181,7 +176,7 @@ checkArgDoubleQuotes (t : tokens) history cmd =
                      do
                       tokenss <- checkArgDoubleQuotes tokens history cmd
                       return (t : tokenss)
-checkArgDoubleQuotes [] _ _  = Right []       
+checkArgDoubleQuotes [] _ _  = Right []
 
 
 -- | How to print original command for possible assigns?
@@ -189,27 +184,27 @@ checkArgDoubleQuotes [] _ _  = Right []
 -- | 2. Different types of possible assign
 -- | 3. Store = as part of var string
 checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either String [Arg]
-checkArg (x : xs) history cmd =
+checkArg args@(x : xs) history cmd =
   case x of
     Arg a ->
       case parse S.variableRef a of
-      Left error -> Left ("Error: " ++ error)
-      Right var ->
-        let V possVar = var
-        in case Map.lookup var history of
-              Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-              Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
-              Just _ -> do
-                args <- checkArg xs history cmd
-                return (x : args)
+        Left error -> Right args
+        Right var ->
+          let V possVar = var
+          in case Map.lookup var history of
+                Nothing -> Left (possVar ++ " is not assigned")
+                Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
+                Just _ -> do
+                  args <- checkArg xs history cmd
+                  return (x : args)
     SingleQuote tokens -> do
       checkArgSingleQuotes tokens history
-      args <- checkArg xs history cmd
-      return (x : args)
+      rArgs <- checkArg xs history cmd
+      return (x : rArgs)
     DoubleQuote tokens -> do
       checkArgDoubleQuotes tokens history cmd
-      args <- checkArg xs history cmd
-      return (x : args)
+      rArgs <- checkArg xs history cmd
+      return (x : rArgs)
 checkArg [] _  _ = Right []
 
 checkExecCommandArgs :: BashCommand -> Map Var BashCommand -> Either String BashCommand
@@ -219,9 +214,9 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
 checkVarInExp :: Expression -> Map Var BashCommand -> Expression -> Either String Expression
-checkVarInExp exp history fullExp = 
+checkVarInExp exp history fullExp =
   case exp of
-    Var var -> 
+    Var var ->
       let V possVar = var in
       case Map.lookup var history of
         Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
@@ -233,20 +228,20 @@ checkVarInExp exp history fullExp =
 
 checkNumericalCompStrInExp :: Expression -> Either String Expression
 checkNumericalCompStrInExp exp =
-  case exp of 
+  case exp of
     Op2 (Val (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
     Op2 _ op (Val (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
     _ -> Right exp
 
 checkAndInExp :: Expression -> Either String Expression
-checkAndInExp exp = 
-  case exp of 
-    Op2 _ And _ -> Left (pretty And ++ " cannot be used inside [ ].")
+checkAndInExp exp =
+  case exp of
+    Op2 _ And _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
     _ -> Right exp
 
 checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
-checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history = 
-  do 
+checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
+  do
     checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp
     return cmd
 checkConditionalSt cmd _ = Right cmd

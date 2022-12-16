@@ -203,21 +203,17 @@ commandP = ExecName <$> wsP (filter isSpecial name)
 
 -- | parses single word as an arg
 argP :: Parser Arg
-argP = Arg <$> wsP word
+argP = Arg <$> word
 
 -- | parses quoted string as an arg
 argsP :: Parser Arg
 argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
 
 execCommandP :: Parser BashCommand
-execCommandP = ExecCommand <$> wsP commandP <*> wsP (many (argP <|> argsP))
+execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP) <* string "\n"
 
--- >>> parse execCommandP "echo $x\n"
--- Right (ExecCommand (ExecName "echo") [Arg "$x"])
-
-
--- >>> parse sqStringValP "'hi'"
--- Right "hi"
+-- >>> parse execCommandP "echo hi\n"
+-- Right (ExecCommand (ExecName "echo") [Arg "hi"])
 
 -- >>> parse execCommandP "ls -l -a w$few wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "w$few",Arg "wefjkl"])
@@ -238,7 +234,7 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 conditionalP :: Parser BashCommand
 conditionalP =
 -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
-  Conditional <$> (wsP (string "if [") *> wsP expP <* wsP (string "]"))
+  Conditional <$> ((wsP (string "if [") *> wsP expP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP expP <* wsP (string "]]")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 

@@ -1,6 +1,7 @@
 y=1
 x = 1
-if [ $x && "hello" ] 
+echo hi
+if [[ $y && "hello" ]]
 then
   x=4
 else

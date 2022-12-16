@@ -45,7 +45,7 @@ updHistory bc = case bc of
 
 -- | displays the error message
 errorS :: Show a => a -> String
-errorS cmd = "Error: Unable to Parse Command " ++ show cmd
+errorS = show
 
 evalLine :: (MonadError String m, MonadState (Map Var BashCommand) m) => String -> m BashCommand
 evalLine s = do
@@ -74,8 +74,8 @@ showSt f (v, map) = f v ++ ", map: " ++ show map
 
 -- | Show the result of runExceptT, parameterized by a function
 -- to show the value
-showEx :: (a -> String) -> Either ParseResult a -> String
-showEx _ (Left m) = "Raise: " ++ m
+showEx :: (a -> String) -> Either String a -> String
+showEx _ (Left m) = "[Error] " ++ m
 showEx f (Right v) = "Result: " ++ f v
 
 goExSt :: String -> String
