@@ -33,9 +33,7 @@ name = (:) <$> startOfName <*> many restOfName
 bopP :: Parser Bop
 bopP =
   choice
-
     [
-
       constP "-gt" Gt,
       constP "-lt" Lt,
       constP "-eq" Eq,
@@ -211,10 +209,12 @@ argsP :: Parser Arg
 argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
 
 execCommandP :: Parser BashCommand
-execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP)
+execCommandP = ExecCommand <$> wsP commandP <*> wsP (many (argP <|> argsP))
 
--- >>> parse execCommandP "echo \"~\""
--- Right (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]])
+-- >>> parse execCommandP "echo $x\n"
+-- Right (ExecCommand (ExecName "echo") [Arg "$x"])
+
+
 -- >>> parse sqStringValP "'hi'"
 -- Right "hi"
 
@@ -244,6 +244,8 @@ conditionalP =
 -- >>> parse ((wsP (string "then") *> wsP blockP)) "\nthen\n  x=2"
 -- Left "No parses"
 
+-- >>> parse (wsP (string "else") *> wsP blockP <* wsP (string "fi")) "else\n  x=3\nfi\n"
+-- Right (Block [Assign (V "x") (Val (IntVal 3))])
 
 
 -- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
@@ -316,7 +318,7 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
 
 -- >>> parseShellScript "test/conditional.sh"
--- Right (Block [Assign (V "y") (Val (IntVal 1)),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
+-- Left "No parses"
 
 p :: String -> Block -> IO ()
 p fn ast = do

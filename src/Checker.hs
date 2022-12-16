@@ -8,7 +8,7 @@ import ShellParsing qualified as S
 import ShellSyntax
 
 -- | Finds the first result with error
-eitherOp :: Either String [a] -> Either String [a] -> Either String  [a]
+eitherOp :: Either String a -> Either String a -> Either String a
 eitherOp (Left err1) _ = Left err1
 eitherOp _  (Left err2) = Left err2
 eitherOp (Right cmd) _  = Right cmd
@@ -222,7 +222,28 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
--- checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkVarInExp :: Expression -> Map Var BashCommand -> Expression -> Either String Expression
+checkVarInExp exp history fullExp = 
+  case exp of
+    Var var -> 
+      let V possVar = var in
+      case Map.lookup var history of
+        Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+        Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
+        Just _ -> Right fullExp
+    Op1 _ exp -> checkVarInExp exp history fullExp
+    Op2 exp _ _ -> checkVarInExp exp history fullExp
+    _ -> Right fullExp
+
+checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history = 
+  do 
+    checkVarInExp exp history exp
+    return cmd
+checkConditionalSt cmd _ = Right cmd
+
+
+
 
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty

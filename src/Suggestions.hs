@@ -98,12 +98,22 @@ goExStAll [] = ""
 evalBashLine :: (MonadError String m, MonadState (Map Var BashCommand) m) => BashCommand -> m BashCommand
 evalBashLine bc = do
   oldHistory <- State.get
-  let res = C.checkExecCommandArgs bc oldHistory in
-    case res of
-      Left err -> throwError $ errorS err
-      Right _ -> do
-        updHistory bc
-        return bc 
+  case bc of
+    Conditional _ (Block b1) (Block b2) -> 
+      let res = checkConditionalSt bc oldHistory in
+        case res of
+          Left err -> throwError $ errorS err
+          Right _ -> do
+            evalAllBashLines b1
+            evalAllBashLines b2
+            return bc
+    _ ->
+      let res = C.checkExecCommandArgs bc oldHistory in
+        case res of
+          Left err -> throwError $ errorS err
+          Right _ -> do
+            updHistory bc
+            return bc  
 
 evalAllBashLines :: (MonadError String m, MonadState (Map Var BashCommand) m) => [BashCommand] -> m BashCommand
 evalAllBashLines [x] = do
@@ -121,6 +131,13 @@ evalAll bcs =
     & runIdentity
     & showEx (showSt show)
 
+checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history = 
+  do 
+    C.checkVarInExp exp history exp
+    return cmd
+checkConditionalSt cmd _ = Right cmd
+
 
 evalScript :: String -> IO ()
 evalScript filename = do
@@ -129,9 +146,13 @@ evalScript filename = do
     Left err -> print (errorS err)
     Right (Block bcs) -> print (evalAll bcs)
 
+
+-- >>> evalScript 
+
 -- >>> parseShellScript "test/conditional.sh"
 -- Right (Block [PossibleAssign (PossibleAssignWS (V "y") "" "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
 
+-- >>> parseShellScript "test/conditional.sh"
 
 -- >>> goExStAll ["echo $x"]
 

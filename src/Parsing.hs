@@ -16,7 +16,7 @@ import Data.Char
     isSpace,
     isUpper,
   )
-import Data.Foldable
+import Data.Foldable ( Foldable(foldr), asum )
 import Data.Map hiding (filter)
 import ShellSyntax
 import Test.HUnit
@@ -170,7 +170,7 @@ try1 filename = do
 
 
 -- >>> try1 "test/conditional.sh"
--- "if [y < 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- "y=1\nx = 1\nif [$y -lt 1] \nthen\n  x = 3\nelse\n  x=3\nfi\n"
 
 
 {- File parsers -}
