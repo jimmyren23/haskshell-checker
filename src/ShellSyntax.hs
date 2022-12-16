@@ -53,6 +53,7 @@ data Value
   | IntVal Int -- 1
   | BoolVal Bool -- false, true
   | StringVal String -- "abd"
+  | Misc
   deriving (Eq, Show, Ord)
 
 data Bop
@@ -62,10 +63,14 @@ data Bop
   | Divide -- `//` :: Int -> Int -> Int   -- floor division
   | Modulo -- `%`  :: Int -> Int -> Int   -- modulo
   | Eq -- `==` :: a -> a -> Bool
+  | EqN -- -eq
   | Gt -- `>`  :: a -> a -> Bool
+  | GtN -- -gt
   | Ge -- `>=` :: a -> a -> Bool
   | Lt -- `<`  :: a -> a -> Bool
+  | LtN -- -lt
   | Le -- `<=` :: a -> a -> Bool
+  | And -- &&
   | Concat -- `..` :: String -> String -> String
   deriving (Eq, Show, Enum, Bounded)
 
@@ -73,6 +78,15 @@ data Uop
   = Neg -- `-` :: Int -> Int
   | Not -- `not` :: a -> Bool
   deriving (Eq, Show, Enum, Bounded)
+
+data Misc
+  = Tilde -- ~
+  | Esc -- \'
+   deriving (Eq, Show, Enum, Bounded)
+
+-- Numerical Operators
+numOps :: [Bop]
+numOps = [GtN, LtN, EqN]
 
 -- data NewBashCommand
 --   = SimpleCommand CommandName [Suffix]

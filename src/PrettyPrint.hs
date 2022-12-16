@@ -68,6 +68,10 @@ instance PP Bop where
   pp Le = PP.text "<="
   pp Eq = PP.text "=="
   pp Concat = PP.text ".."
+  pp GtN = PP.text "-gt"
+  pp LtN = PP.text "-lt"
+  pp EqN = PP.text "-eq"
+  pp And = PP.text "&&"
 
 instance PP Expression where
   pp (Var v) = pp v

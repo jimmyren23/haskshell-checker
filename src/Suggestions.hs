@@ -100,11 +100,12 @@ evalBashLine bc = do
   oldHistory <- State.get
   case bc of
     Conditional _ (Block b1) (Block b2) -> 
-      let res = checkConditionalSt bc oldHistory in
+      let res = C.checkConditionalSt bc oldHistory in
         case res of
           Left err -> throwError $ errorS err
           Right _ -> do
-            evalAllBashLines b1
+            -- Make sure to evaluate nested blocks too
+            evalAllBashLines b1 
             evalAllBashLines b2
             return bc
     _ ->
@@ -131,13 +132,6 @@ evalAll bcs =
     & runIdentity
     & showEx (showSt show)
 
-checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
-checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history = 
-  do 
-    C.checkVarInExp exp history exp
-    return cmd
-checkConditionalSt cmd _ = Right cmd
-
 
 evalScript :: String -> IO ()
 evalScript filename = do
@@ -153,6 +147,8 @@ evalScript filename = do
 -- Right (Block [PossibleAssign (PossibleAssignWS (V "y") "" "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
 
 -- >>> parseShellScript "test/conditional.sh"
+-- Left "No parses"
+
 
 -- >>> goExStAll ["echo $x"]
 

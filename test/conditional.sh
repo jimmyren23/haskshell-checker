@@ -1,8 +1,8 @@
 y=1
 x = 1
-if [$y -lt 1] 
+if [ $x && "hello" ] 
 then
-  echo $x
+  x=4
 else
   x=3
 fi

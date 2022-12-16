@@ -29,10 +29,6 @@ checkQuotedTildeExpansionTokens token =
 checkSingleQuoteApostrophe :: Value -> Either String Value
 checkSingleQuoteApostrophe = undefined
 
--- | Checks if apostrophe is escaped inside single quotes
-checkEscapeQuote :: Value -> Either String Value
-checkEscapeQuote = undefined
-
 {- Conditionals -}
 
 -- | Checks if equal-to is missing spaces around itself
@@ -235,10 +231,23 @@ checkVarInExp exp history fullExp =
     Op2 exp _ _ -> checkVarInExp exp history fullExp
     _ -> Right fullExp
 
+checkNumericalCompStrInExp :: Expression -> Either String Expression
+checkNumericalCompStrInExp exp =
+  case exp of 
+    Op2 (Val (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    Op2 _ op (Val (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    _ -> Right exp
+
+checkAndInExp :: Expression -> Either String Expression
+checkAndInExp exp = 
+  case exp of 
+    Op2 _ And _ -> Left (pretty And ++ " cannot be used inside [ ].")
+    _ -> Right exp
+
 checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
 checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history = 
   do 
-    checkVarInExp exp history exp
+    checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp
     return cmd
 checkConditionalSt cmd _ = Right cmd
 

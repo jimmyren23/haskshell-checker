@@ -34,9 +34,9 @@ bopP :: Parser Bop
 bopP =
   choice
     [
-      constP "-gt" Gt,
-      constP "-lt" Lt,
-      constP "-eq" Eq,
+      constP "-gt" GtN,
+      constP "-lt" LtN,
+      constP "-eq" EqN,
       constP "+" Plus,
       constP "-" Minus,
       constP "*" Times,
@@ -47,7 +47,8 @@ bopP =
       constP ">" Gt,
       constP "<=" Le,
       constP "<" Lt,
-      constP ".." Concat
+      constP ".." Concat,
+      constP "&&" And
     ]
 
 -- | Parse an operator at a specified precedence level
@@ -318,7 +319,7 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
 
 -- >>> parseShellScript "test/conditional.sh"
--- Left "No parses"
+-- Right (Block [Assign (V "y") (Val (IntVal 1)),PossibleAssign (PossibleAssignWS (V "x") " " "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "x")) And (Val (StringVal "hi"))) (Block [Assign (V "x") (Val (IntVal 4))]) (Block [Assign (V "x") (Val (IntVal 3))])])
 
 p :: String -> Block -> IO ()
 p fn ast = do
