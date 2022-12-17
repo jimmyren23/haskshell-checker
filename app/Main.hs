@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 module Main where
 
 import Parsing
@@ -5,12 +7,14 @@ import ShellParsing
 import Suggestions
 import System.Environment (getArgs)
 
-main = undefined
-
--- main = do
---   args <- getArgs
---   let filename = head args
---    in parseFromFile bashFileP filename
+main :: IO ()
+main = do
+  putStrLn "\n << Welcome to HaskShell >>"
+  putStrLn "Please enter in the relative path to a shell script (or text file) that you would like to check."
+  x <- getLine 
+  putStrLn "\t"
+  evalScript x
+  return ()
 
 -- Current Flow
 -- Suggestions:
