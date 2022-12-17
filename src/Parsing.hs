@@ -70,7 +70,7 @@ filter f p = P $ \s -> do
   if f c then return (c, cs) else
     do 
       sn <- parse untilNewline cs
-      Left ("Please check line:   " ++ sn ++ "   ")
+      Left ("[ParseError] Please check line:   " ++ sn ++ "   ")
 
 
 type ParseResult = String
@@ -79,7 +79,7 @@ type ParseResult = String
 get :: Parser Char
 get = P $ \s -> case s of
   (c : cs) -> Right (c, cs)
-  [] -> Left "No more chars"
+  [] -> Left "[ParseError] No more characters to parse!"
 
 -- | Use a parser for a particular string. Note that this parser
 -- combinator library doesn't support descriptive parse errors, but we

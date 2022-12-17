@@ -47,7 +47,7 @@ instance PP Arg where
 instance PP Value where
   pp (IntVal i) = pp i
   pp (BoolVal b) = pp b
-  pp (StringVal s) = PP.text ("\"" <> s <> "\"")
+  pp (StringVal s) = PP.text ("'" <> s <> "'")
 
 isBase :: Expression -> Bool
 isBase Val {} = True
@@ -158,8 +158,15 @@ test_prettyPrint =
 -- >>> runTestTT test_prettyPrint
 -- Counts {cases = 3, tried = 3, errors = 0, failures = 0}
 
+-- >>> pretty (StringVal "hi")
+-- "\"hi\""
+
+
 -- >>> pretty (PossibleAssign (V "var1") (Val (StringVal "hi")))
--- "var1 = \"hi\""
+-- Couldn't match expected type ‘Expression -> a0’
+--             with actual type ‘BashCommand’
+-- Couldn't match expected type ‘PossibleAssign’
+--             with actual type ‘Var’
 
 -- >>> PP.equals
 -- =

@@ -257,7 +257,7 @@ checkArgDoubleQuotes tokens@(t : ts) history cmd =
             let V possVar = var
             in case Map.lookup var history of
                   Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-                  Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
+                  Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                   Just _ ->
                      do
                       tokenss <- checkArgDoubleQuotes ts history cmd
@@ -279,7 +279,7 @@ checkArg args@(x : xs) history cmd =
           let V possVar = var
           in case Map.lookup var history of
                 Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-                Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
+                Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                 Just _ -> do
                   args <- checkArg xs history cmd
                   return (x : args)
@@ -306,7 +306,7 @@ checkVarInExp exp history fullExp =
       let V possVar = var in
       case Map.lookup var history of
         Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-        Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
+        Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
         Just _ -> Right fullExp
     IfOp1 _ exp -> checkVarInExp exp history fullExp
     IfOp2 exp _ _ -> checkVarInExp exp history fullExp

@@ -56,7 +56,7 @@ evalLine s = do
       oldHistory <- State.get
       let res = C.checkExecCommandArgs bc oldHistory
        in case res of
-            Left err -> throwError $ errorS err
+            Left err -> throwError err
             Right _ -> do
               updHistory bc
               return bc
@@ -75,7 +75,7 @@ showSt f (v, map) = f v ++ ", map: " ++ show map
 -- | Show the result of runExceptT, parameterized by a function
 -- to show the value
 showEx :: (a -> String) -> Either String a -> String
-showEx _ (Left m) = "[Error] " ++ m
+showEx _ (Left m) = "<HaskShell> " ++ m
 showEx f (Right v) = "Result: " ++ f v
 
 goExSt :: String -> String
@@ -102,7 +102,7 @@ evalBashLine bc = do
     Conditional _ (Block b1) (Block b2) ->
       let res = C.checkConditionalSt bc oldHistory
        in case res of
-            Left err -> throwError $ errorS err
+            Left err -> throwError err
             Right _ -> do
               -- Make sure to evaluate nested blocks too
               evalAllBashLines b1
@@ -126,13 +126,13 @@ evalAllBashLines [] = undefined
 
 evalAll :: [BashCommand] -> String
 evalAll bcs =
-  evalAllBashLines bcs -- :: StateT Int (ExceptT String Identity) Int
+  evalAllBashLines bcs
     & flip runStateT Map.empty
     & runExceptT
     & runIdentity
     & showEx (showSt show)
 
--- Main Function that takes a file and evaluates it
+-- | Main entry point that takes a bash script and checks it
 evalScript :: String -> IO ()
 evalScript filename = do
   res <- parseShellScript filename
