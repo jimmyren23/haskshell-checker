@@ -157,6 +157,9 @@ stringP s = wsP (string s) *> pure ()
 constP :: String -> a -> Parser a
 constP s rtrnVal = wsP (string s) *> pure rtrnVal
 
+errP :: a -> Parser a
+errP rtrnVal = wsP (many (satisfy (/= ' '))) *> pure rtrnVal
+
 eof :: Parser ()
 eof = P $ \s -> case s of
   [] -> Just ((), [])
@@ -168,9 +171,11 @@ try1 filename = do
   handle <- IO.openFile filename IO.ReadMode
   IO.hGetContents handle
 
+-- >>> parse (wsP (many (satisfy (/= ' ')))) "-ew "
+-- Right "-ew"
 
--- >>> try1 "test/conditional.sh"
--- "y=1\nx = 1\nif [$y -lt 1] \nthen\n  x = 3\nelse\n  x=3\nfi\n"
+-- >>> try1 "test/conditional.txt"
+-- "y=1\nx=1\nif [[ $y -ew \"hello\" ]]\nthen\n  echo \"$x\"\nelse\n  x=3\nfi\n"
 
 
 {- File parsers -}
