@@ -291,6 +291,9 @@ variableRef = V <$> (char '$' *> wsP word)
 argUnquotedVar :: Parser Arg
 argUnquotedVar = Arg <$> (char '$' *> wsP word)
 
+arithmeticInner :: Parser String
+arithmeticInner = many (satisfy (/= '$'))
+
 -- >>> parse bashCommandP "echo \"hi\""
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 

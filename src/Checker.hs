@@ -158,11 +158,12 @@ checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) =
     else Right (ExecCommand cmd args)
 checkCommandSubstitution cmd = Right cmd
 
-argArithmeticExpansion :: Arg -> Either String Arg
-argArithmeticExpansion (Arg s) = case parse S.oldArithmeticExpansion s of
+-- | Checks if outdated $[] is used instead of standard $((..)) in an Arg
+oldArithExpansionArg :: Arg -> Either String Arg
+oldArithExpansionArg (Arg s) = case parse S.oldArithmeticExpansion s of
   Left _ -> Right (Arg s)
   Right _ -> Left ("Warning: Old arithmetic expansion is being used in" ++ s ++ ". Use $((..)) instead.")
-argArithmeticExpansion arg = Right arg
+oldArithExpansionArg arg = Right arg
 
 -- | Checks if outdated $[] is used instead of standard $((..))
 checkArithmeticParentheses :: BashCommand -> Either String BashCommand
@@ -171,9 +172,23 @@ checkArithmeticParentheses (ExecCommand cmd@(ExecName cmdName) args) = case mapM
   Right args' -> Right (ExecCommand cmd args')
 checkArithmeticParentheses cmd = Right cmd
 
+argArithmeticExpansion :: Arg -> Either String Arg
+argArithmeticExpansion (Arg s) = case parse S.arithmeticExpansion s of
+  Left _ -> Right (Arg s)
+  Right inner -> case parse S.arithmeticInner inner of
+    Left _ -> Left ("Style Warning: $ is being used in $()). " ++ s ++ ". Don't use $ on variables in $((..))")
+    Right _ -> Right (Arg s)
+argArithmeticExpansion arg = Right arg
+
+-- >>> argArithmeticExpansion (Arg "$(($Random % 6))")
+-- Left "Style Warning: $ is being used in $()). $(($Random % 6)). Don't use $ on variables in $((..))"
+
 -- | Checks if $ is used for variables in $((..))
 checkNoVarInArithemetic :: BashCommand -> Either String BashCommand
-checkNoVarInArithemetic = undefined
+checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
+  Left err -> Left err
+  Right args' -> Right (ExecCommand cmd args')
+checkNoVarInArithemetic cmd = Right cmd
 
 -- | Checks if echo is unnecessarily used
 checkEchoUsage :: BashCommand -> Either String BashCommand
