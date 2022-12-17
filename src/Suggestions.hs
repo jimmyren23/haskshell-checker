@@ -132,7 +132,7 @@ evalAll bcs =
     & runIdentity
     & showEx (showSt show)
 
--- | Main entry point that takes a bash script and checks it
+-- | Entrypoint to the checker
 evalScript :: String -> IO ()
 evalScript filename = do
   res <- parseShellScript filename
@@ -190,3 +190,12 @@ goStEx e =
 
 -- >>> runStateT (parseLines ["a=1", "b=2"]) Map.empty
 -- ((),fromList [(V "a",Val (IntVal 1)),(V "b",Val (IntVal 2))])
+
+main :: IO ()
+main = do
+  putStrLn "\n << Welcome to HaskShell >>"
+  putStrLn "Please enter in the relative path to a shell script (or text file) that you would like to check."
+  x <- getLine 
+  putStrLn "\t"
+  evalScript x
+  return ()
