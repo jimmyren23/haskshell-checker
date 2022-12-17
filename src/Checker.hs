@@ -204,7 +204,7 @@ checkNoVarInArithemetic cmd = Right cmd
 checkArrayAssignAsString :: BashCommand -> Either String BashCommand
 checkArrayAssignAsString = undefined -- \$@ -> Used to access bash command line args array
 
--- | Checks if arrays are referencd as strings
+-- | Checks if arrays are referenced as strings
 checkArrayReferenceInString :: BashCommand -> Either String BashCommand
 checkArrayReferenceInString = undefined
 
@@ -216,9 +216,18 @@ checkStringArrayConcatenation = undefined
 checkStringNumericalComparison :: BashCommand -> Either String BashCommand
 checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
+argUnusedVar :: Arg -> Map Var BashCommand -> Either String Arg
+argUnusedVar (Arg s) history = case parse S.word s of
+  Left _ -> Right (Arg s)
+  Right potentialVar -> if Map.member (V potentialVar) history then Left ("Style Warning: Potentialy trying to use variable " ++ potentialVar ++ ". It is unused. Use $ to use it.") else Right (Arg s)
+argUnusedVar arg _ = Right arg
+
 -- | Checks if variables are being attempted to be used incorrectly - user intends to use it but does not do so correctly using $
-checkUnusedVar :: BashCommand -> Either String Command
-checkUnusedVar = undefined
+checkUnusedVar :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history = case mapM (`argUnusedVar` history) args of
+  Left err -> Left err
+  Right args' -> Right (ExecCommand cmd args')
+checkUnusedVar cmd _ = Right cmd
 
 checkVarInSingleQuotes :: Token -> Either String [Token]
 checkVarInSingleQuotes t =
