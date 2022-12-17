@@ -92,19 +92,6 @@ tokenPars [] = 0
 
 -- >>> parse printfParser "%sewjfk%s"
 -- Right (PrintBlock [Type,Token "ewjfk",Type])
-
--- | Use a parser for a particular string. Note that this parser
--- combinator library doesn't support descriptive parse errors, but we
--- give it a type similar to other Parsing libraries.
-allInts :: Parser Int -> String -> Either ParseResult Int
-allInts parser str =
-  case doParse parser str of
-    Nothing -> Left "No parses"
-    Just (a, m) ->
-      case m of
-        "" -> Right a -- empty quote returned means no error
-        _ -> Left m -- m stores feedback from checker if there was an error
-
 -- >>> parse printfArg "%swefjkl%s"
 -- Left "wefjkl%s"
 
@@ -114,13 +101,11 @@ allInts parser str =
 --   n <- many digit
 --   return $ read n
 
+-- | Parses binary operators for non-conditional expressions
 bopP :: Parser Bop
 bopP =
   choice
-    [ constP "-gt" GtN,
-      constP "-lt" LtN,
-      constP "-eq" EqN,
-      constP "+" Plus,
+    [ constP "+" Plus,
       constP "-" Minus,
       constP "*" Times,
       constP "//" Divide,
@@ -134,6 +119,7 @@ bopP =
       constP "&&" And
     ]
 
+-- | Parses binary operators for conditional expressions
 ifBopP :: Parser IfBop
 ifBopP =
   choice
@@ -177,19 +163,12 @@ uopP = constP "-" Neg <|> constP "not" Not
 intValP :: Parser Value
 intValP = IntVal <$> wsP int
 
--- >>> parse (many boolValP) "true false\n true"
--- Right [BoolVal True,BoolVal False,BoolVal True]
 boolValP :: Parser Value
 boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 
--- >>> parse (many nilValP) "nil nil\n nil"
--- Right [NilVal,NilVal,NilVal]
-nilValP :: Parser Value
-nilValP = wsP (constP "nil" NilVal)
-
 {- Parsers for quoted strings -}
 
--- | parses unallowed tokens in quotes
+-- | Parses tokens that can't be used within strings
 errorStrParser :: Parser String
 errorStrParser =
   -- constP "\'" "<singleQuote>" -- single quote
@@ -238,7 +217,7 @@ stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
 -- | parses different values
 valueP :: Parser Value
-valueP = intValP <|> boolValP <|> nilValP <|> stringValP
+valueP = intValP <|> boolValP <|> stringValP
 
 expP :: Parser Expression
 expP = compP
@@ -347,6 +326,7 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 -- >>> parse conditionalStrP "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 -- Left "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
+-- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand
 conditionalP =
   -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
@@ -375,7 +355,7 @@ argUnquotedVar = Arg <$> (char '$' *> wsP word)
 arithmeticInner :: Parser String
 arithmeticInner = many (satisfy (/= '$'))
 
--- >>> parse bashCommandP "echo \"hi\""
+-- >>> parse bashCommandP "echo \"$hi\""
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
 -- >>> parse variableRef "$x"
@@ -423,6 +403,9 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- newlineP :: Parser String
 -- newlineP =
 
+-- >>> parse bashCommandP "echo \"hi\""
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
+
 -- >>> parse newlineP "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 -- Left "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
@@ -430,6 +413,9 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 
 -- >>> parse expP "1"
 -- Right (Val (IntVal 1))
+
+-- >>> parse untilNewline "\nif [[ $x -ew \\\"hello\\\" ]]\n"
+-- Right "if [[ $x -ew \\\"hello\\\" ]]"
 
 -- >>> parse expP "$y < 1"
 -- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
