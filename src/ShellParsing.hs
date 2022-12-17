@@ -309,6 +309,10 @@ innerArithmetic = many (satisfy (/= ')'))
 arithmeticExpansion :: Parser String
 arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "(") innerArithmetic (stringP ")")) (stringP ")")
 
+oldArithmeticExpansion :: Parser String
+oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
+
+
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"
 

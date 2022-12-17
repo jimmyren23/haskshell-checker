@@ -154,13 +154,22 @@ unstylisticInterpolation arg = Right arg
 checkCommandSubstitution :: BashCommand -> Either String BashCommand
 checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) =
   if cmdName == "find" && hasRedirect args
-    then Left "Warning: Redirections is being used on find command. Rewrite it."
+    then Left "Style Warning: Redirections is being used on find command. Rewrite it."
     else Right (ExecCommand cmd args)
 checkCommandSubstitution cmd = Right cmd
 
+argArithmeticExpansion :: Arg -> Either String Arg
+argArithmeticExpansion (Arg s) = case parse S.oldArithmeticExpansion s of
+  Left _ -> Right (Arg s)
+  Right _ -> Left ("Warning: Old arithmetic expansion is being used in" ++ s ++ ". Use $((..)) instead.")
+argArithmeticExpansion arg = Right arg
+
 -- | Checks if outdated $[] is used instead of standard $((..))
 checkArithmeticParentheses :: BashCommand -> Either String BashCommand
-checkArithmeticParentheses = undefined
+checkArithmeticParentheses (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
+  Left err -> Left err
+  Right args' -> Right (ExecCommand cmd args')
+checkArithmeticParentheses cmd = Right cmd
 
 -- | Checks if $ is used for variables in $((..))
 checkNoVarInArithemetic :: BashCommand -> Either String BashCommand
