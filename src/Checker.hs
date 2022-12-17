@@ -15,11 +15,11 @@ eitherOp (Right cmd) _  = Right cmd
 
 {- Quoting -}
 
--- | Checks if a variable is quoted
+-- | Checks if a variable is quoted (warning)
 checkUnquotedVar :: Var -> Either String Var
 checkUnquotedVar = undefined
 
--- | Checks if tilde is used in quotes
+-- | DONE - Checks if tilde is used in quotes
 
 checkQuotedTildeExpansionTokens :: Token -> Either String [Token]
 checkQuotedTildeExpansionTokens token =
@@ -154,19 +154,19 @@ checkEscapeInSingleQuotes t =
   if t == "<escape>" then Left "Escape cannot be used in single quotes" else Right [t]
 
 checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either String [Token]
-checkArgSingleQuotes (t : tokens) history =
+checkArgSingleQuotes tokens@(t : ts) history =
   let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t in
     case res of
       Left err -> Left err
       Right tt -> do
-        tokenss <- checkArgSingleQuotes tokens history
+        tokenss <- checkArgSingleQuotes ts history
         return (tt ++ tokenss)
 checkArgSingleQuotes [] _  = Right []
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
-checkArgDoubleQuotes (t : tokens) history cmd =
+checkArgDoubleQuotes tokens@(t : ts) history cmd =
    case parse S.variableRef t of
-          Left error -> Left ("Error: " ++ error)
+          Left error -> Right tokens
           Right var ->
             let V possVar = var
             in case Map.lookup var history of
@@ -174,7 +174,7 @@ checkArgDoubleQuotes (t : tokens) history cmd =
                   Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                   Just _ ->
                      do
-                      tokenss <- checkArgDoubleQuotes tokens history cmd
+                      tokenss <- checkArgDoubleQuotes ts history cmd
                       return (t : tokenss)
 checkArgDoubleQuotes [] _ _  = Right []
 
@@ -213,30 +213,30 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
-checkVarInExp :: Expression -> Map Var BashCommand -> Expression -> Either String Expression
+checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either String IfExpression
 checkVarInExp exp history fullExp =
   case exp of
-    Var var ->
+    IfVar var ->
       let V possVar = var in
       case Map.lookup var history of
         Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
         Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
         Just _ -> Right fullExp
-    Op1 _ exp -> checkVarInExp exp history fullExp
-    Op2 exp _ _ -> checkVarInExp exp history fullExp
+    IfOp1 _ exp -> checkVarInExp exp history fullExp
+    IfOp2 exp _ _ -> checkVarInExp exp history fullExp
     _ -> Right fullExp
 
-checkNumericalCompStrInExp :: Expression -> Either String Expression
+checkNumericalCompStrInExp :: IfExpression -> Either String IfExpression
 checkNumericalCompStrInExp exp =
   case exp of
-    Op2 (Val (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    Op2 _ op (Val (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp2 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp2 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
     _ -> Right exp
 
-checkAndInExp :: Expression -> Either String Expression
+checkAndInExp :: IfExpression -> Either String IfExpression
 checkAndInExp exp =
   case exp of
-    Op2 _ And _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
+    IfOp2 _ AndIf _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
     _ -> Right exp
 
 checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand

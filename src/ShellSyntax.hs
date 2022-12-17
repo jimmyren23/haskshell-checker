@@ -5,7 +5,7 @@ import Text.PrettyPrint (Doc, (<+>))
 data BashCommand
   = ExecCommand Command [Arg]
   | PossibleAssign PossibleAssign
-  | Conditional Expression Block Block
+  | Conditional IfExpression Block Block
   | Assign Var Expression
   deriving (Eq, Show)
 
@@ -24,6 +24,13 @@ newtype Var = V String
 data PossibleAssign 
   = PossibleAssignWS Var String Equal String Expression -- extra spaces
   | PossibleAssignDS Var Equal Expression -- $
+  deriving (Eq, Show)
+
+data IfExpression
+  = IfVar Var -- global variables x and table indexing
+  | IfVal Value -- literal values
+  | IfOp1 Uop IfExpression -- unary operators
+  | IfOp2 IfExpression IfBop IfExpression -- binary operators
   deriving (Eq, Show)
 
 data Arg 
@@ -56,6 +63,8 @@ data Value
   | Misc
   deriving (Eq, Show, Ord)
 
+
+
 data Bop
   = Plus -- `+`  :: Int -> Int -> Int
   | Minus -- `-`  :: Int -> Int -> Int
@@ -74,6 +83,30 @@ data Bop
   | Concat -- `..` :: String -> String -> String
   deriving (Eq, Show, Enum, Bounded)
 
+-- Referenced : https://linuxhint.com/bash_operator_examples/#o73
+data IfBop
+  = Nt -- -nt file operator checking if a file is newer than the other
+  | Ot -- -ot file operator checking if a file is older than the other
+  | Ef -- -ef checking if the two hard links are pointing the same file or not
+  | EqIf -- `==` 
+  | EqNIf -- -eq numerical operator
+  | EqS -- = `=` string operaor
+  | GtIf -- `>`  :: a -> a -> Bool
+  | GtNIf -- -gt
+  | GeIf -- `>=` :: a -> a -> Bool
+  | GeNIf -- -ge
+  | LtIf -- `<`  :: a -> a -> Bool
+  | LtNIf -- -lt
+  | LeIf -- `<=` :: a -> a -> Bool
+  | LeNIf -- -le
+  | Ne -- != 
+  | NeN -- -ne
+  | AndIf -- &&
+  | Reg -- =~
+  deriving (Eq, Show, Enum, Bounded)
+-- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
+--     "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
+
 data Uop
   = Neg -- `-` :: Int -> Int
   | Not -- `not` :: a -> Bool
@@ -84,9 +117,9 @@ data Misc
   | Esc -- \'
    deriving (Eq, Show, Enum, Bounded)
 
--- Numerical Operators
-numOps :: [Bop]
-numOps = [GtN, LtN, EqN]
+-- | Numerical operators for conditionals
+numOps :: [IfBop]
+numOps = [GtNIf, LtNIf, EqNIf, GeNIf, LtNIf, LeNIf, NeN]
 
 -- data NewBashCommand
 --   = SimpleCommand CommandName [Suffix]

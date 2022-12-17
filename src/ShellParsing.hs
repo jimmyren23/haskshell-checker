@@ -29,7 +29,10 @@ restOfName = startOfName <|> digit
 name :: Parser String
 name = (:) <$> startOfName <*> many restOfName
 
+    -- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
+    -- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
 -- parses binary operators
+
 bopP :: Parser Bop
 bopP =
   choice
@@ -49,6 +52,30 @@ bopP =
       constP "<" Lt,
       constP ".." Concat,
       constP "&&" And
+    ]
+
+ifBopP :: Parser IfBop
+ifBopP =
+  choice
+    [
+      constP "-nt" Nt,
+      constP "-ot" Ot,
+      constP "-ef" Ef,
+      constP "-ge" GeNIf,
+      constP "-le" LeNIf,
+      constP "-ne" NeN,
+      constP "-gt" GtNIf,
+      constP "-lt" LtNIf,
+      constP "-eq" EqNIf,
+      constP "!=" Ne,
+      constP "==" EqIf,
+      constP ">=" GeIf,
+      constP ">" GtIf,
+      constP "<=" LeIf,
+      constP "<" LtIf,
+      constP "&&" AndIf,
+      constP "=~" Reg,
+      constP "=" EqS
     ]
 
 -- | Parse an operator at a specified precedence level
@@ -105,7 +132,7 @@ dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
 
 -- | Double quoted string - parses tokens that aren't allowed as well
 dqStringValErrP :: Parser [Token]
-dqStringValErrP = between (char '\"') (many (errorStrParser <|> wsP word)) (wsP (char '\"'))
+dqStringValErrP = between (char '\"') (many (errorStrParser <|> (word <* many space))) (char '\"')
 
 -- | Single quoted string - extracts out pure string only
 sqStringValP :: Parser String
@@ -113,7 +140,7 @@ sqStringValP = between (char '\'') innerSq (wsP (char '\''))
 
 -- | Single quoted string - parses tokens that aren't allowed as well
 sqStringValErrP :: Parser [Token]
-sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (wsP (char '\''))
+sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char '\'')
 
 -- >>> parse dqStringValErrP "\"~\""
 -- Right ["<tilde>"]
@@ -137,8 +164,16 @@ expP = compP
         <|> Op1 <$> uopP <*> uopexpP
     baseP =  Var <$> variableRef <|> Val <$> valueP
 
--- >>> parse expP "$y < 1"
--- Left " < 1"
+ifExpP :: Parser IfExpression
+ifExpP = bopexpP
+  where
+    bopexpP = baseP `chainl1` (flip IfOp2 <$> ifBopP)
+    -- uopexpP =
+    --   baseP
+    --     <|> Op1 <$> uopP <*> uopexpP
+    baseP = IfVar <$> variableRef <|> IfVal <$> valueP
+
+
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
@@ -210,10 +245,10 @@ argsP :: Parser Arg
 argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
 
 execCommandP :: Parser BashCommand
-execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP) <* string "\n"
+execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP) <* many (char '\n')
 
--- >>> parse execCommandP "echo hi\n"
--- Right (ExecCommand (ExecName "echo") [Arg "hi"])
+-- >>> parse execCommandP "echo \"hi\"\n"
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
 -- >>> parse execCommandP "ls -l -a w$few wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "w$few",Arg "wefjkl"])
@@ -228,13 +263,14 @@ conditionalStrP :: Parser String
 conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
 
 
+
 -- >>> parse conditionalStrP "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 -- Left "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
 conditionalP :: Parser BashCommand
 conditionalP =
 -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
-  Conditional <$> ((wsP (string "if [") *> wsP expP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP expP <* wsP (string "]]")))
+  Conditional <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
@@ -254,8 +290,8 @@ variableRef :: Parser Var
 variableRef = V <$> (char '$' *> wsP word)
 
 
--- >>> parse bashCommandP "echo \'\\'\'"
--- Right (ExecCommand (ExecName "echo") [SingleQuote ["<escape>"]])
+-- >>> parse bashCommandP "echo \"hi\""
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
 -- >>> parse variableRef "$x"
 -- Right "x"

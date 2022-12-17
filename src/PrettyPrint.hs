@@ -56,6 +56,12 @@ isBase Var {} = True
 isBase Op1 {} = True
 isBase _ = False
 
+ifIsBase :: IfExpression -> Bool
+ifIsBase IfVal {} = True
+ifIsBase IfVar {} = True
+ifIsBase IfOp1 {} = True
+ifIsBase _ = False
+
 instance PP Bop where
   pp Plus = PP.char '+'
   pp Minus = PP.char '-'
@@ -73,6 +79,27 @@ instance PP Bop where
   pp EqN = PP.text "-eq"
   pp And = PP.text "&&"
 
+
+instance PP IfBop where
+  pp Nt = PP.text "-nt" -- -nt file operator checking if a file is newer than the other
+  pp Ot = PP.text "-ot" -- -ot file operator checking if a file is older than the other
+  pp Ef = PP.text "-ef" -- -ef checking if the two hard links are pointing the same file or not
+  pp EqIf = PP.text "==" -- `==` 
+  pp EqNIf = PP.text "-eq" -- -eq numerical operator
+  pp EqS = PP.text "=" -- = `=` string operaor
+  pp GtIf = PP.text ">" -- `>`  :: a -> a -> Bool
+  pp GtNIf = PP.text "-gt" -- -gt
+  pp GeIf = PP.text ">="-- `>=` :: a -> a -> Bool
+  pp GeNIf = PP.text "-ge" -- -ge
+  pp LtIf = PP.text "<"-- `<`  :: a -> a -> Bool
+  pp LtNIf = PP.text "-lt" -- -lt
+  pp LeIf = PP.text "<=" -- `<=` :: a -> a -> Bool
+  pp LeNIf = PP.text "-le" -- -le
+  pp Ne = PP.text "!=" -- != 
+  pp NeN = PP.text "-ne" -- -ne
+  pp AndIf = PP.text "&&" -- &&
+  pp Reg = PP.text "=~" -- =~
+
 instance PP Expression where
   pp (Var v) = pp v
   pp (Val v) = pp v
@@ -84,6 +111,15 @@ instance PP Expression where
           ppPrec (level bop) e1 <+> pp bop <+> ppPrec (level bop + 1) e2
       ppPrec _ e' = pp e'
       ppParens b = if b then PP.parens else id
+
+instance PP IfExpression where
+  pp (IfVar v) = pp v
+  pp (IfVal v) = pp v
+  pp (IfOp1 o v) = pp o <+> if ifIsBase v then pp v else PP.parens (pp v)
+  pp e@IfOp2 {} = ppPrec e
+    where
+      ppPrec (IfOp2 e1 bop e2) = pp e1 <+> pp bop <+> pp e2
+      ppPrec e' = pp e'
 
 instance PP Block where
   pp (Block [s]) = pp s
