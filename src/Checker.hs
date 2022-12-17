@@ -102,7 +102,11 @@ hasRedirect = Prelude.foldr ((||) . redirectArg) False
 
 -- | Checks if redirections are in find
 checkRedirectionInFind :: BashCommand -> Either String BashCommand
-checkRedirectionInFind = undefined
+checkRedirectionInFind (ExecCommand cmd@(ExecName cmdName) args) =
+  if cmdName == "find" && hasRedirect args
+    then Left "Warning: Redirections is being used on find command. Rewrite it."
+    else Right (ExecCommand cmd args)
+checkRedirectionInFind cmd = Right cmd
 
 {- Beginner Mistakes -}
 
