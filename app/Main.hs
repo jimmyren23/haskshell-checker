@@ -1,14 +1,12 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# LANGUAGE ImportQualifiedPost #-}
-
 
 module Main where
 
+import Control.Monad (unless)
 import Parsing
 import ShellParsing
 import Suggestions
 import System.Environment (getArgs)
-import Control.Monad ( unless )
 
 userInput :: IO ()
 userInput = do
@@ -18,7 +16,6 @@ userInput = do
   unless (x == "q") $ do
     evalScript x
     userInput
-
 
 main :: IO ()
 main = do
