@@ -29,16 +29,11 @@ restOfName = startOfName <|> digit
 name :: Parser String
 name = (:) <$> startOfName <*> many restOfName
 
--- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
--- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
--- parses binary operators
-
+-- | Parses binary operators for non-conditional expressions
 bopP :: Parser Bop
 bopP =
   choice
-    [ constP "-gt" GtN,
-      constP "-lt" LtN,
-      constP "-eq" EqN,
+    [
       constP "+" Plus,
       constP "-" Minus,
       constP "*" Times,
@@ -53,6 +48,7 @@ bopP =
       constP "&&" And
     ]
 
+-- | Parses binary operators for conditional expressions
 ifBopP :: Parser IfBop
 ifBopP =
   choice
@@ -96,19 +92,12 @@ uopP = constP "-" Neg <|> constP "not" Not
 intValP :: Parser Value
 intValP = IntVal <$> wsP int
 
--- >>> parse (many boolValP) "true false\n true"
--- Right [BoolVal True,BoolVal False,BoolVal True]
 boolValP :: Parser Value
 boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 
--- >>> parse (many nilValP) "nil nil\n nil"
--- Right [NilVal,NilVal,NilVal]
-nilValP :: Parser Value
-nilValP = wsP (constP "nil" NilVal)
-
 {- Parsers for quoted strings -}
 
--- | parses unallowed tokens in quotes
+-- | Parses tokens that can't be used within strings
 errorStrParser :: Parser String
 errorStrParser =
   -- constP "\'" "<singleQuote>" -- single quote
@@ -157,7 +146,7 @@ stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
 -- | parses different values
 valueP :: Parser Value
-valueP = intValP <|> boolValP <|> nilValP <|> stringValP
+valueP = intValP <|> boolValP <|> stringValP
 
 expP :: Parser Expression
 expP = compP
@@ -266,6 +255,7 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 -- >>> parse conditionalStrP "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 -- Left "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
+-- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand
 conditionalP =
   -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"

@@ -47,7 +47,6 @@ instance PP Arg where
 instance PP Value where
   pp (IntVal i) = pp i
   pp (BoolVal b) = pp b
-  pp NilVal = PP.text "nil"
   pp (StringVal s) = PP.text ("\"" <> s <> "\"")
 
 isBase :: Expression -> Bool
@@ -74,9 +73,6 @@ instance PP Bop where
   pp Le = PP.text "<="
   pp Eq = PP.text "=="
   pp Concat = PP.text ".."
-  pp GtN = PP.text "-gt"
-  pp LtN = PP.text "-lt"
-  pp EqN = PP.text "-eq"
   pp And = PP.text "&&"
 
 

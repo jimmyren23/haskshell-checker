@@ -1,7 +1,8 @@
-echo '$hi'
+x=3
 if [[ $x -ew "hello" ]]
 then
   echo "$x"
 else
   x=3
 fi
+y=2+4
