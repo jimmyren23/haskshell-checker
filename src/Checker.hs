@@ -339,15 +339,25 @@ checkConditionalSt cmd _ = Right cmd
 -- checkAssignmentInSubshell = undefined
 
 -- | Checks if commands that don't read are being piped
-checkPipingRead :: BashCommand -> Either String Command
+checkPipingRead :: BashCommand -> Either String BashCommand
 checkPipingRead = undefined
 
+-- | checks Double Quote Arguments to tell you if contain type conversion
+-- | if you find the arg with double quotes, then look after for arguments
+-- | for each token
+hasCorrectNumberPrintfArgs :: [Arg] -> Bool
+hasCorrectNumberPrintfArgs [] = True
+hasCorrectNumberPrintfArgs (x : xs) = case x of
+  DoubleQuote tokens -> length xs == S.tokenPars tokens
+  _ -> hasCorrectNumberPrintfArgs xs
+
 -- | Checks if argument count doesn't match in printf
-checkPrintArgCount :: BashCommand -> Either String Command
-checkPrintArgCount = undefined
+checkPrintArgCount :: BashCommand -> Either String BashCommand
+checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left ("Error: Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
+checkPrintArgCount cmd = Right cmd
 
 -- | Checks if word boundaries are lost in array eval
-checkArrayEval :: BashCommand -> Either String Command
+checkArrayEval :: BashCommand -> Either String BashCommand
 checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
 
 -- TODO: Need to define for-loop type first
@@ -356,7 +366,7 @@ checkArrayEval = undefined -- [@] -> treats each element as a separate command b
 -- for i in "${x[@]}";
 --    do ${x[$i]}
 -- done
-checkArrayValueUsedAsKey :: BashCommand -> Either String Command
+checkArrayValueUsedAsKey :: BashCommand -> Either String BashCommand
 checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
@@ -371,7 +381,7 @@ checkVarInPrintfArgs :: Arg -> Map Var BashCommand -> Either String Arg
 checkVarInPrintfArgs arg history = case arg of
   DoubleQuote tokens -> if any (isTokenVar history) tokens then Left "Error: Variables are not allowed in printf arguments." else Right arg
   _ -> Right arg
-  
+
 -- >>> checkVarInPrintfArgs (DoubleQuote ["$x"]) (Map.fromList [(V "x", Assign (V "x") (Val (StringVal "hello")))])
 -- Left "Error: Variables are not allowed in printf arguments."
 

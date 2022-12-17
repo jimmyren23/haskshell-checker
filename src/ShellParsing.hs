@@ -33,6 +33,87 @@ name = (:) <$> startOfName <*> many restOfName
 -- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
 -- parses binary operators
 
+-- parse through any character, if it is a %, parse the next
+
+nonPrintFArg :: Parser String
+nonPrintFArg = many (satisfy (/= '%'))
+
+data PrintfToken = Token String | Type
+  deriving (Show, Eq)
+
+-- | Parses a printf argument
+printfArg :: Parser PrintfToken
+printfArg =
+  constP "%s" Type
+    <|> constP "%d" Type
+    <|> constP "%f" Type
+    <|> constP "%c" Type
+    <|> constP "%b" Type
+    <|> constP "%x" Type
+    <|> constP "%o" Type
+    <|> constP "%e" Type
+    <|> constP "%g" Type
+    <|> constP "%a" Type
+
+startOfType :: Parser Char
+startOfType = satisfy (/= '%')
+
+printfToken :: Parser PrintfToken
+printfToken = Token <$> ((:) <$> startOfType <*> many startOfType)
+
+printfParser :: Parser [PrintfToken]
+printfParser = many (printfArg <|> printfToken)
+
+typeCounter :: [PrintfToken] -> Int
+typeCounter = foldr (\x acc -> case x of Type -> acc + 1; _ -> acc) 0
+
+tokenPars :: [Token] -> Int
+tokenPars (x : xs) = case parse printfParser x of
+  Left _ -> tokenPars xs
+  Right printfTokens -> helper printfTokens + tokenPars xs
+    where
+      helper = foldr (\x acc -> case x of Type -> acc + 1; _ -> acc) 0
+tokenPars [] = 0
+
+-- >>> parse printfParser "%s waejfklawjfe wefjklawfjl %s"
+-- Right [Type,Token "waejfklawjfe wefjklawfjl ",Type]
+
+-- >>> typeCounter [Type,Token "waejfklawjfe wefjklawfjl ",Type]
+-- 2
+
+-- >>> tokenPars ["%s awefjkwl", "%s", "wefjkwl %g"]
+-- 3
+
+-- >>> parse printfToken "eawjawefjklewkflw"
+-- Right (Token "eawjawefjklewkflw")
+
+-- >>> parse printfArg "%s"
+-- Right Type
+
+-- >>> parse printfParser "%sewjfk%s"
+-- Right (PrintBlock [Type,Token "ewjfk",Type])
+
+-- | Use a parser for a particular string. Note that this parser
+-- combinator library doesn't support descriptive parse errors, but we
+-- give it a type similar to other Parsing libraries.
+allInts :: Parser Int -> String -> Either ParseResult Int
+allInts parser str =
+  case doParse parser str of
+    Nothing -> Left "No parses"
+    Just (a, m) ->
+      case m of
+        "" -> Right a -- empty quote returned means no error
+        _ -> Left m -- m stores feedback from checker if there was an error
+
+-- >>> parse printfArg "%swefjkl%s"
+-- Left "wefjkl%s"
+
+-- argumentCounter :: Parser Int
+-- argumentCounter = do
+--   char '-'
+--   n <- many digit
+--   return $ read n
+
 bopP :: Parser Bop
 bopP =
   choice
@@ -294,7 +375,6 @@ argUnquotedVar = Arg <$> (char '$' *> wsP word)
 arithmeticInner :: Parser String
 arithmeticInner = many (satisfy (/= '$'))
 
-
 -- >>> parse bashCommandP "echo \"hi\""
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
@@ -315,7 +395,6 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 
 oldArithmeticExpansion :: Parser String
 oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
-
 
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"
