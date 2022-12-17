@@ -5,7 +5,7 @@ import Control.Applicative
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
-    runExceptT, 
+    runExceptT,
   )
 import Control.Monad.Identity
   ( Identity (runIdentity),
@@ -28,11 +28,11 @@ import System.IO.Error qualified as IO
 -- | Action that updates the state
 updHistory :: MonadState (Map Var BashCommand) m => BashCommand -> m ()
 updHistory bc = case bc of
-  PossibleAssign pa@(PossibleAssignWS var _ eq _ exp)-> do
+  PossibleAssign pa@(PossibleAssignWS var _ eq _ exp) -> do
     oldHistory <- State.get
     let newHistory = Map.insert var bc oldHistory
     put newHistory
-  PossibleAssign pa@(PossibleAssignDS var eq exp)-> do
+  PossibleAssign pa@(PossibleAssignDS var eq exp) -> do
     oldHistory <- State.get
     let newHistory = Map.insert var bc oldHistory
     put newHistory
@@ -50,16 +50,16 @@ errorS = show
 evalLine :: (MonadError String m, MonadState (Map Var BashCommand) m) => String -> m BashCommand
 evalLine s = do
   let res = parse S.bashCommandP s
-  case res of 
+  case res of
     Left err -> throwError $ errorS err
     Right bc -> do
       oldHistory <- State.get
-      let res = C.checkExecCommandArgs bc oldHistory in
-        case res of
-          Left err -> throwError $ errorS err
-          Right _ -> do
-            updHistory bc
-            return bc
+      let res = C.checkExecCommandArgs bc oldHistory
+       in case res of
+            Left err -> throwError $ errorS err
+            Right _ -> do
+              updHistory bc
+              return bc
 
 evalAllLines :: (MonadError String m, MonadState (Map Var BashCommand) m) => [String] -> m BashCommand
 evalAllLines [x] = do
@@ -99,22 +99,22 @@ evalBashLine :: (MonadError String m, MonadState (Map Var BashCommand) m) => Bas
 evalBashLine bc = do
   oldHistory <- State.get
   case bc of
-    Conditional _ (Block b1) (Block b2) -> 
-      let res = C.checkConditionalSt bc oldHistory in
-        case res of
-          Left err -> throwError $ errorS err
-          Right _ -> do
-            -- Make sure to evaluate nested blocks too
-            evalAllBashLines b1 
-            evalAllBashLines b2
-            return bc
+    Conditional _ (Block b1) (Block b2) ->
+      let res = C.checkConditionalSt bc oldHistory
+       in case res of
+            Left err -> throwError $ errorS err
+            Right _ -> do
+              -- Make sure to evaluate nested blocks too
+              evalAllBashLines b1
+              evalAllBashLines b2
+              return bc
     _ ->
-      let res = C.checkExecCommandArgs bc oldHistory in
-        case res of
-          Left err -> throwError $ errorS err
-          Right _ -> do
-            updHistory bc
-            return bc  
+      let res = C.checkExecCommandArgs bc oldHistory
+       in case res of
+            Left err -> throwError $ errorS err
+            Right _ -> do
+              updHistory bc
+              return bc
 
 evalAllBashLines :: (MonadError String m, MonadState (Map Var BashCommand) m) => [BashCommand] -> m BashCommand
 evalAllBashLines [x] = do
@@ -132,7 +132,7 @@ evalAll bcs =
     & runIdentity
     & showEx (showSt show)
 
-
+-- Main Function that takes a file and evaluates it
 evalScript :: String -> IO ()
 evalScript filename = do
   res <- parseShellScript filename
@@ -140,15 +140,13 @@ evalScript filename = do
     Left err -> print (errorS err)
     Right (Block bcs) -> print (evalAll bcs)
 
-
--- >>> evalScript 
+-- >>> evalScript
 
 -- >>> parseShellScript "test/conditional.sh"
 -- Right (Block [PossibleAssign (PossibleAssignWS (V "y") "" "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
 
 -- >>> parseShellScript "test/conditional.sh"
 -- Left "No parses"
-
 
 -- >>> goExStAll ["echo $x"]
 

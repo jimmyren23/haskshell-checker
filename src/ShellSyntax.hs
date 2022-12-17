@@ -7,6 +7,7 @@ data BashCommand
   | PossibleAssign PossibleAssign
   | Conditional Expression Block Block
   | Assign Var Expression
+  | PossibleConditional Expression Block Block
   deriving (Eq, Show)
 
 newtype Command = ExecName String

@@ -10,29 +10,52 @@ import ShellSyntax
 -- | Finds the first result with error
 eitherOp :: Either String a -> Either String a -> Either String a
 eitherOp (Left err1) _ = Left err1
-eitherOp _  (Left err2) = Left err2
-eitherOp (Right cmd) _  = Right cmd
+eitherOp _ (Left err2) = Left err2
+eitherOp (Right cmd) _ = Right cmd
 
 {- Quoting -}
 
 -- | Checks if a variable is quoted
-checkUnquotedVar :: Var -> Either String Var
-checkUnquotedVar = undefined
+checkUnquotedVar :: Arg -> Map Var BashCommand -> Either String Arg
+checkUnquotedVar (Arg s) history = case parse S.argUnquotedVar s of
+  Left str -> Right (Arg s)
+  Right var ->
+    if Map.member (V s) history
+      then Left ("Warning: Variable " ++ s ++ " that was previously used is not quoted.")
+      else Right (Arg s)
+checkUnquotedVar arg _ = Right arg
 
 -- | Checks if tilde is used in quotes
-
 checkQuotedTildeExpansionTokens :: Token -> Either String [Token]
 checkQuotedTildeExpansionTokens token =
-    if token == "<tilde>" then Left "Tilde expansion can't be used in strings" else Right [token]
+  if token == "<tilde>" then Left "Tilde expansion can't be used in strings" else Right [token]
+
+-- | Checks if token could be a variable, considering if its in its history
+possVariableRefToken :: Token -> Map Var BashCommand -> Bool
+possVariableRefToken t history =
+  let res = parse S.variableRef t
+   in case res of
+        Left _ -> False
+        Right var -> Map.member var history
+
+tokenListSearch :: [Token] -> Map Var BashCommand -> Either String [Token]
+tokenListSearch [] _ = Right []
+tokenListSearch (t : ts) history =
+  if possVariableRefToken t history
+    then Left ("Warning: Variable " ++ t ++ " that was previously used is not quoted.")
+    else tokenListSearch ts history
 
 -- | Checks if single quotes are closed by apostrophe
-checkSingleQuoteApostrophe :: Value -> Either String Value
-checkSingleQuoteApostrophe = undefined
+checkSingleQuoteApostrophe :: Arg -> Map Var BashCommand -> Either String Arg
+checkSingleQuoteApostrophe (SingleQuote tokens) history = case tokenListSearch tokens history of
+  Left err -> Left err
+  Right _ -> Right (SingleQuote tokens)
+checkSingleQuoteApostrophe val _ = Right val
 
 {- Conditionals -}
 
 -- | Checks if equal-to is missing spaces around itself
-checkMissingSpaces :: Expression -> Maybe String
+checkMissingSpaces :: String -> Either String String
 checkMissingSpaces = undefined
 
 -- | Checks if Expression to see if conditional is implicitly always true through mislabeled expression
@@ -48,7 +71,6 @@ checkQuotedRegex = undefined
 checkUnsupportedOperators :: Expression -> Either String Expression
 checkUnsupportedOperators = undefined
 
-
 -- | Checks if test operators are used in ((..))
 checkTestOperators :: Expression -> Either String Expression
 checkTestOperators = undefined
@@ -61,11 +83,22 @@ checkBackgroundingAndPiping = undefined
 
 -- | Checks if sudo is being redirected
 checkRedirectInSudo :: BashCommand -> Either String BashCommand
-checkRedirectInSudo = undefined
+checkRedirectInSudo (ExecCommand cmd@(ExecName cmdName) args) =
+  if cmdName == "sudo" && hasRedirect args
+    then Left "Warning: sudo is being redirected"
+    else Right (ExecCommand cmd args)
+checkRedirectInSudo cmd = Right cmd
 
--- | Checks if aliases are defined with arguments
-checkArgumentsInAliases :: BashCommand -> Either String BashCommand
-checkArgumentsInAliases = undefined
+redirectArg :: Arg -> Bool
+redirectArg (Arg s) = s == "<" || s == ">" || s == ">>"
+redirectArg _ = False
+
+hasRedirect :: [Arg] -> Bool
+hasRedirect = Prelude.foldr ((||) . redirectArg) False
+
+-- -- | Checks if aliases are defined with arguments
+-- checkArgumentsInAliases :: BashCommand -> Either String BashCommand
+-- checkArgumentsInAliases = undefined
 
 -- | Checks if redirections are in find
 checkRedirectionInFind :: BashCommand -> Either String BashCommand
@@ -146,8 +179,8 @@ checkUnusedVar = undefined
 checkVarInSingleQuotes :: Token -> Either String [Token]
 checkVarInSingleQuotes t =
   case parse S.variableRef t of
-        Left error -> Right [t]
-        Right _ -> Left "Variables cannot be used inside single quotes."
+    Left error -> Right [t]
+    Right _ -> Left "Variables cannot be used inside single quotes."
 
 checkEscapeInSingleQuotes :: Token -> Either String [Token]
 checkEscapeInSingleQuotes t =
@@ -155,29 +188,28 @@ checkEscapeInSingleQuotes t =
 
 checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either String [Token]
 checkArgSingleQuotes (t : tokens) history =
-  let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t in
-    case res of
-      Left err -> Left err
-      Right tt -> do
-        tokenss <- checkArgSingleQuotes tokens history
-        return (tt ++ tokenss)
-checkArgSingleQuotes [] _  = Right []
+  let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t
+   in case res of
+        Left err -> Left err
+        Right tt -> do
+          tokenss <- checkArgSingleQuotes tokens history
+          return (tt ++ tokenss)
+checkArgSingleQuotes [] _ = Right []
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
 checkArgDoubleQuotes (t : tokens) history cmd =
-   case parse S.variableRef t of
-          Left error -> Left ("Error: " ++ error)
-          Right var ->
-            let V possVar = var
-            in case Map.lookup var history of
-                  Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-                  Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
-                  Just _ ->
-                     do
-                      tokenss <- checkArgDoubleQuotes tokens history cmd
-                      return (t : tokenss)
-checkArgDoubleQuotes [] _ _  = Right []
-
+  case parse S.variableRef t of
+    Left error -> Left ("Error: " ++ error)
+    Right var ->
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+            Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
+            Just _ ->
+              do
+                tokenss <- checkArgDoubleQuotes tokens history cmd
+                return (t : tokenss)
+checkArgDoubleQuotes [] _ _ = Right []
 
 -- | How to print original command for possible assigns?
 -- | 1. Store in history map as a string in its original form
@@ -191,7 +223,7 @@ checkArg args@(x : xs) history cmd =
         Left error -> Right args
         Right var ->
           let V possVar = var
-          in case Map.lookup var history of
+           in case Map.lookup var history of
                 Nothing -> Left (possVar ++ " is not assigned")
                 Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                 Just _ -> do
@@ -205,7 +237,7 @@ checkArg args@(x : xs) history cmd =
       checkArgDoubleQuotes tokens history cmd
       rArgs <- checkArg xs history cmd
       return (x : rArgs)
-checkArg [] _  _ = Right []
+checkArg [] _ _ = Right []
 
 checkExecCommandArgs :: BashCommand -> Map Var BashCommand -> Either String BashCommand
 checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
@@ -217,11 +249,11 @@ checkVarInExp :: Expression -> Map Var BashCommand -> Expression -> Either Strin
 checkVarInExp exp history fullExp =
   case exp of
     Var var ->
-      let V possVar = var in
-      case Map.lookup var history of
-        Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
-        Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
-        Just _ -> Right fullExp
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+            Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
+            Just _ -> Right fullExp
     Op1 _ exp -> checkVarInExp exp history fullExp
     Op2 exp _ _ -> checkVarInExp exp history fullExp
     _ -> Right fullExp
@@ -245,10 +277,6 @@ checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
     checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp
     return cmd
 checkConditionalSt cmd _ = Right cmd
-
-
-
-
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"
