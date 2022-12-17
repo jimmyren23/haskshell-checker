@@ -87,30 +87,30 @@ showSt f (v, myState) = f v ++ ", history: " ++ show (history myState) ++ ", var
 -- | Show the result of runExceptT, parameterized by a function
 -- to show the value
 showEx :: (a -> String) -> Either String a -> String
-showEx _ (Left m) = "<HaskShell> " ++ m
-showEx f (Right v) = "Result: " ++ f v
+showEx _ (Left m) = "<Error>: " ++ m
+showEx f (Right v) = "<Result>: " ++ f v
 
 -- >>> showEx show (Left "Error")
 -- "<HaskShell> Error"
 -- >>> showEx show (Right 5)
 -- "Result: 5"
 
-goExSt :: String -> String
-goExSt e =
-  evalLine e
-    & flip runStateT (MyState {history = Map.empty, varFrequency = Map.empty})
-    & runExceptT
-    & runIdentity
-    & showEx (showSt show)
+-- goExSt :: String -> String
+-- goExSt e =
+--   evalLine e -- :: StateT Int (ExceptT String Identity) Int
+--     & flip runStateT Map.empty
+--     & runExceptT
+--     & runIdentity
+--     & showEx (showSt show)
 
-goExStAll :: [String] -> String
-goExStAll (x : xs) =
-  evalAllLines (x : xs) -- :: StateT Int (ExceptT String Identity) Int
-    & flip runStateT (MyState {history = Map.empty, varFrequency = Map.empty})
-    & runExceptT
-    & runIdentity
-    & showEx (showSt show)
-goExStAll [] = ""
+-- goExStAll :: [String] -> String
+-- goExStAll (x : xs) =
+--   evalAllLines (x : xs) -- :: StateT Int (ExceptT String Identity) Int
+--     & flip runStateT Map.empty
+--     & runExceptT
+--     & runIdentity
+--     & showEx (showSt show)
+-- goExStAll [] = ""
 
 evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m BashCommand
 evalBashLine bc = do
@@ -142,6 +142,7 @@ evalAllBashLines (x : xs) = do
   evalAllBashLines xs
 evalAllBashLines [] = undefined
 
+-- | Take 
 evalAll :: [BashCommand] -> String
 evalAll bcs =
   evalAllBashLines bcs

@@ -19,7 +19,7 @@ userInput = do
 
 main :: IO ()
 main = do
-  putStrLn "\n<< Welcome to HaskShell >>"
+  putStrLn "\n<< Welcome to HaskShell Checker >>"
   userInput
 
 -- Current Flow
