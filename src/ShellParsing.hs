@@ -29,8 +29,8 @@ restOfName = startOfName <|> digit
 name :: Parser String
 name = (:) <$> startOfName <*> many restOfName
 
-    -- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
-    -- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
+-- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
+-- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
 -- parses binary operators
 
 bopP :: Parser Bop
@@ -56,8 +56,7 @@ bopP =
 ifBopP :: Parser IfBop
 ifBopP =
   choice
-    [
-      constP "-nt" Nt,
+    [ constP "-nt" Nt,
       constP "-ot" Ot,
       constP "-ef" Ef,
       constP "-ge" GeNIf,
@@ -124,6 +123,9 @@ innerDq = many (satisfy (/= '\"'))
 innerSq :: Parser String
 innerSq = many (satisfy (/= '\''))
 
+innerBacktick :: Parser String
+innerBacktick = many (satisfy (/= '`'))
+
 -- | Double quoted string - extracts out pure string only
 dqStringValP :: Parser String
 dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
@@ -136,9 +138,16 @@ dqStringValErrP = between (char '\"') (many (errorStrParser <|> (word <* many sp
 sqStringValP :: Parser String
 sqStringValP = between (char '\'') innerSq (wsP (char '\''))
 
+-- | backticks
+backticksP :: Parser String
+backticksP = between (char '`') innerBacktick (wsP (char '`'))
+
 -- | Single quoted string - parses tokens that aren't allowed as well
 sqStringValErrP :: Parser [Token]
 sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char '\'')
+
+-- >>> parse backticksP "`waefjk~jkw!@#$`"
+-- Right "waefjk~jkw!@#$"
 
 -- >>> parse dqStringValErrP "\"~\""
 -- Right ["<tilde>"]
@@ -170,8 +179,6 @@ ifExpP = bopexpP
     --   baseP
     --     <|> Op1 <$> uopP <*> uopexpP
     baseP = IfVar <$> variableRef <|> IfVal <$> valueP
-
-
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
@@ -261,8 +268,9 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 
 conditionalP :: Parser BashCommand
 conditionalP =
--- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
-  Conditional <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")))
+  -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+  Conditional
+    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 

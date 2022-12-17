@@ -125,8 +125,8 @@ checkElseIf :: BashCommand -> Either String BashCommand
 checkElseIf = undefined
 
 -- | Checks if function has not been defined previously
-checkUndefinedFunction :: BashCommand -> Either String BashCommand
-checkUndefinedFunction = undefined
+-- checkUndefinedFunction :: BashCommand -> Either String BashCommand
+-- checkUndefinedFunction = undefined
 
 -- | Checks if only false is present conditional expression
 checkSingleFalse :: BashCommand -> Either String BashCommand
@@ -139,8 +139,24 @@ checkParenthesisInsteadOfTest = undefined
 {- Style -}
 
 -- | Checks if `` is used to interpolate instead of $()
+
+-- | Checks if token uses backticks, should be $() instead
+backTickToken :: Token -> Bool
+backTickToken t =
+  case parse S.backticksP t of
+    Left _ -> False
+    Right _ -> True
+
+unstylisticInterpolation :: Arg -> Either String Arg
+unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left "Warning: Backticks are being used, which has been deprecated. Use $() instead." else Right (SingleQuote tokens)
+unstylisticInterpolation arg = Right arg
+
 checkCommandSubstitution :: BashCommand -> Either String BashCommand
-checkCommandSubstitution = undefined
+checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) =
+  if cmdName == "find" && hasRedirect args
+    then Left "Warning: Redirections is being used on find command. Rewrite it."
+    else Right (ExecCommand cmd args)
+checkCommandSubstitution cmd = Right cmd
 
 -- | Checks if outdated $[] is used instead of standard $((..))
 checkArithmeticParentheses :: BashCommand -> Either String BashCommand
