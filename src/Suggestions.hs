@@ -141,7 +141,10 @@ evalScript filename = do
     Right (Block bcs) -> print (evalAll bcs)
 
 
--- >>> evalScript 
+
+-- >>> parse
+
+-- >>> 
 
 -- >>> parseShellScript "test/conditional.sh"
 -- Right (Block [PossibleAssign (PossibleAssignWS (V "y") "" "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])

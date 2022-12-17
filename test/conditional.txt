@@ -1,6 +1,5 @@
-y=1
-x=1
-if [[ $y -ew "hello" ]]
+echo '$hi'
+if [[ $x -ew "hello" ]]
 then
   echo "$x"
 else

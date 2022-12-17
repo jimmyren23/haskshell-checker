@@ -170,7 +170,7 @@ checkArgDoubleQuotes tokens@(t : ts) history cmd =
           Right var ->
             let V possVar = var
             in case Map.lookup var history of
-                  Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+                  Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
                   Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                   Just _ ->
                      do
@@ -192,7 +192,7 @@ checkArg args@(x : xs) history cmd =
         Right var ->
           let V possVar = var
           in case Map.lookup var history of
-                Nothing -> Left (possVar ++ " is not assigned")
+                Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
                 Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                 Just _ -> do
                   args <- checkArg xs history cmd
@@ -219,7 +219,7 @@ checkVarInExp exp history fullExp =
     IfVar var ->
       let V possVar = var in
       case Map.lookup var history of
-        Nothing -> Left ("Error: " ++ possVar ++ " is not assigned")
+        Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
         Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ "  when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
         Just _ -> Right fullExp
     IfOp1 _ exp -> checkVarInExp exp history fullExp

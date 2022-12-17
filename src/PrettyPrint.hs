@@ -99,6 +99,7 @@ instance PP IfBop where
   pp NeN = PP.text "-ne" -- -ne
   pp AndIf = PP.text "&&" -- &&
   pp Reg = PP.text "=~" -- =~
+  pp Err = PP.text "err"
 
 instance PP Expression where
   pp (Var v) = pp v

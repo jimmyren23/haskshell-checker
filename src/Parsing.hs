@@ -27,7 +27,7 @@ import System.IO.Error qualified as IO
 -- Untyped shell
 
 -- | A parser is a function that takes a string and returns untyped shell
-newtype Parser a = P {doParse :: String -> Maybe (a, String)}
+newtype Parser a = P {doParse :: String -> Either String (a, String)}
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
@@ -37,7 +37,7 @@ instance Functor Parser where
 
 instance Applicative Parser where
   pure :: a -> Parser a
-  pure x = P $ \s -> Just (x, s)
+  pure x = P $ \s -> Right (x, s)
 
   (<*>) :: Parser (a -> b) -> Parser a -> Parser b
   p1 <*> p2 = P $ \s -> do
@@ -47,16 +47,19 @@ instance Applicative Parser where
 
 instance Alternative Parser where
   empty :: Parser a
-  empty = P $ const Nothing
+  empty = P $ const $ Left "error"
+
 
   (<|>) :: Parser a -> Parser a -> Parser a
-  p1 <|> p2 = P $ \s -> doParse p1 s `firstJust` doParse p2 s
+  p1 <|> p2 = P $ \s -> doParse p1 s `firstRight` doParse p2 s
 
 -- | Combine two Maybe values together, producing the first
 -- successful result
-firstJust :: Maybe a -> Maybe a -> Maybe a
-firstJust (Just x) _ = Just x
-firstJust Nothing y = y
+firstRight :: Either String a -> Either String a -> Either String a
+firstRight (Right str) _ = Right str
+firstRight _  (Right str) = Right str
+firstRight (Left err) _  = Left err
+
 
 newtype History = History (Map Var BashCommand)
 
@@ -64,16 +67,19 @@ newtype History = History (Map Var BashCommand)
 filter :: (a -> Bool) -> Parser a -> Parser a
 filter f p = P $ \s -> do
   (c, cs) <- doParse p s
-  guard (f c)
-  return (c, cs)
+  if f c then return (c, cs) else
+    do 
+      sn <- parse untilNewline cs
+      Left ("Please check line:   " ++ sn ++ "   ")
+
 
 type ParseResult = String
 
 -- | Return the next character from the input
 get :: Parser Char
 get = P $ \s -> case s of
-  (c : cs) -> Just (c, cs)
-  [] -> Nothing
+  (c : cs) -> Right (c, cs)
+  [] -> Left "No more chars"
 
 -- | Use a parser for a particular string. Note that this parser
 -- combinator library doesn't support descriptive parse errors, but we
@@ -81,8 +87,8 @@ get = P $ \s -> case s of
 parse :: Parser a -> String -> Either ParseResult a
 parse parser str =
   case doParse parser str of
-    Nothing -> Left "No parses"
-    Just (a, m) ->
+    Left err -> Left err
+    Right (a, m) ->
       case m of
         "" -> Right a -- empty quote returned means no error
         _ -> Left m -- m stores feedback from checker if there was an error
@@ -162,17 +168,27 @@ errP rtrnVal = wsP (many (satisfy (/= ' '))) *> pure rtrnVal
 
 eof :: Parser ()
 eof = P $ \s -> case s of
-  [] -> Just ((), [])
-  _ : _ -> Nothing
+  [] -> Right ((), [])
+  x -> do
+    sn <- parse untilNewline x
+    Left ("Please check line:   " ++ sn ++ "   ")
 
+untilNewline :: Parser String
+untilNewline = many (satisfy (/= '\n')) <* newline <* many get
+
+-- >>> parse untilNewline "if sjallk\n ajslkdlf"
+-- Right "if sjallk"
+
+-- >>> parse bashCommandP "echo \"hi\""
+-- Variable not in scope: bashCommandP :: Parser a
 
 try1 :: FilePath -> IO String
 try1 filename = do
   handle <- IO.openFile filename IO.ReadMode
   IO.hGetContents handle
 
--- >>> parse (wsP (many (satisfy (/= ' ')))) "-ew "
--- Right "-ew"
+-- >>> parse (many get <* (string "\n") <* many get) "if \n"
+-- Left "err"
 
 -- >>> try1 "test/conditional.txt"
 -- "y=1\nx=1\nif [[ $y -ew \"hello\" ]]\nthen\n  echo \"$x\"\nelse\n  x=3\nfi\n"

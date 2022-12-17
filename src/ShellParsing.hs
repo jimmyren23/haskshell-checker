@@ -291,7 +291,7 @@ variableRef :: Parser Var
 variableRef = V <$> (char '$' *> wsP word)
 
 
--- >>> parse bashCommandP "echo \"hi\""
+-- >>> parse bashCommandP "echo \"$hi\""
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
 -- >>> parse variableRef "$x"
@@ -339,6 +339,9 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- newlineP :: Parser String
 -- newlineP = 
 
+-- >>> parse bashCommandP "echo \"hi\""
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
+
 -- >>> parse newlineP "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 -- Left "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
@@ -346,6 +349,11 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 
 -- >>> parse expP "1"
 -- Right (Val (IntVal 1))
+
+
+
+-- >>> parse untilNewline "\nif [[ $x -ew \\\"hello\\\" ]]\n"
+-- Right "if [[ $x -ew \\\"hello\\\" ]]"
 
 
 -- >>> parse expP "$y < 1"
