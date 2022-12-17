@@ -191,12 +191,12 @@ checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) = case mapM ar
 checkNoVarInArithemetic cmd = Right cmd
 
 -- | Checks if echo is unnecessarily used
-checkEchoUsage :: BashCommand -> Either String BashCommand
-checkEchoUsage = undefined
+-- checkEchoUsage :: BashCommand -> Either String BashCommand
+-- checkEchoUsage = undefined
 
 -- | Checks if cat is unnecessarily used
-checkCatUsage :: BashCommand -> Either String BashCommand
-checkCatUsage = undefined
+-- checkCatUsage :: BashCommand -> Either String BashCommand
+-- checkCatUsage = undefined
 
 {- Data and typing errors -}
 

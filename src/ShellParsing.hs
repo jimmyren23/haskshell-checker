@@ -329,7 +329,6 @@ oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (s
 -- Left "'$hi'"
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
--- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])
 
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
