@@ -361,6 +361,28 @@ checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
 
+isTokenVar :: Map Var BashCommand -> Token -> Bool
+isTokenVar history t = case parse S.variableRef t of
+  Left _ -> False
+  Right var -> Map.member var history
+
+-- | Checks if variables are used in printf argument
+checkVarInPrintfArgs :: Arg -> Map Var BashCommand -> Either String Arg
+checkVarInPrintfArgs arg history = case arg of
+  DoubleQuote tokens -> if any (isTokenVar history) tokens then Left "Error: Variables are not allowed in printf arguments." else Right arg
+  _ -> Right arg
+  
+-- >>> checkVarInPrintfArgs (DoubleQuote ["$x"]) (Map.fromList [(V "x", Assign (V "x") (Val (StringVal "hello")))])
+-- Left "Error: Variables are not allowed in printf arguments."
+
 -- | Checks if vaiables are used in printf
-checkNoVariablesInPrintf :: BashCommand -> Either String Command
-checkNoVariablesInPrintf = undefined
+checkNoVariablesInPrintf :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
+  if cmdName == "printf"
+    then
+      let res = checkArg args history (ExecCommand cmd args)
+       in case res of
+            Left err -> Left err
+            Right args -> Right (ExecCommand cmd args)
+    else Right (ExecCommand cmd args)
+checkNoVariablesInPrintf cmd history = Right cmd
