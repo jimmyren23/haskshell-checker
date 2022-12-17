@@ -1,3 +1,5 @@
+{-# LANGUAGE ImportQualifiedPost #-}
+
 module Suggestions where
 
 import Checker qualified as C
@@ -139,54 +141,3 @@ evalScript filename = do
   case res of
     Left err -> print (errorS err)
     Right (Block bcs) -> print (evalAll bcs)
-
-
-
--- >>> parse
-
--- >>> 
-
--- >>> parseShellScript "test/conditional.sh"
--- Right (Block [PossibleAssign (PossibleAssignWS (V "y") "" "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "y")) Lt (Val (IntVal 1))) (Block [Assign (V "x") (Val (IntVal 2))]) (Block [Assign (V "x") (Val (IntVal 3))])])
-
--- >>> parseShellScript "test/conditional.sh"
--- Left "No parses"
-
--- >>> goExStAll ["echo $x"]
-
--- >>> goExStAll ["x=3", "echo $x"]
--- "Result: ExecCommand (ExecName \"echo\") [Arg \"$x\"], map: fromList [(V \"x\",Assign (V \"x\") (Val (IntVal 3)))]"
-
--- Just (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]],"")
--- Just (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]],"")
-
-goStEx e =
-  evalLine e -- :: ExceptT String (StateT Int Identity) Int
-    & runExceptT
-    & flip runStateT Map.empty
-    & runIdentity
-    & showSt (showEx show)
-
--- >>> goExSt "x=3"
--- "Result: Assign (V \"x\") (Val (IntVal 3)), map: fromList [(V \"x\",Val (IntVal 3))]"
-
--- >> runStateT (parseLines ["x=3", "y=4", "ls -l -r"]) Map.empty
--- ((),fromList [(V "x",Val (IntVal 3)),(V "y",Val (IntVal 4))])
-
--- -- | Reads line and outputs the warnings and updates the state
--- parseLine :: String -> IO (Either ParseResult BashCommand)
--- parseLine line = do
---   pure $ parse S.bashCommandP line
-
--- -- | For each line, parse and update the history and output any errors
--- parseLines :: [String] -> StateT (Map Var Expression) IO ()
--- parseLines (x : xs) = do
---   let res = parse S.bashCommandP x
---   case res of
---     Left err -> return ()
---     Right bc -> updHistory bc
---   parseLines xs
--- parseLines [] = return ()
-
--- >>> runStateT (parseLines ["a=1", "b=2"]) Map.empty
--- ((),fromList [(V "a",Val (IntVal 1)),(V "b",Val (IntVal 2))])

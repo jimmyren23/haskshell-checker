@@ -36,7 +36,7 @@ data IfExpression
   deriving (Eq, Show)
 
 -- | List of binary operators permitted for bash conditional expressions
--- | Note: This list may not be comprehensive. 
+-- | Note: This list may not be comprehensive of all permitted binary operators. 
 -- | Referenced : https://linuxhint.com/bash_operator_examples/#o73
 data IfBop
   = Nt -- -nt file operator checking if a file is newer than the other

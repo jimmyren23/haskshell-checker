@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE ImportQualifiedPost #-}
+
 
 module Main where
 
@@ -6,15 +8,22 @@ import Parsing
 import ShellParsing
 import Suggestions
 import System.Environment (getArgs)
+import Control.Monad ( unless )
+
+userInput :: IO ()
+userInput = do
+  putStr "\n"
+  putStrLn "++ Please enter in the relative path to a shell script (or text file) that you would like to check."
+  x <- getLine
+  unless (x == "q") $ do
+    evalScript x
+    userInput
+
 
 main :: IO ()
 main = do
-  putStrLn "\n << Welcome to HaskShell >>"
-  putStrLn "Please enter in the relative path to a shell script (or text file) that you would like to check."
-  x <- getLine 
-  putStrLn "\t"
-  evalScript x
-  return ()
+  putStrLn "\n<< Welcome to HaskShell >>"
+  userInput
 
 -- Current Flow
 -- Suggestions:
