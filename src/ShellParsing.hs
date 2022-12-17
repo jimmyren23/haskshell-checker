@@ -75,7 +75,8 @@ ifBopP =
       constP "<" LtIf,
       constP "&&" AndIf,
       constP "=~" Reg,
-      constP "=" EqS
+      constP "=" EqS,
+      errP Err
     ]
 
 -- | Parse an operator at a specified precedence level

@@ -1,6 +1,6 @@
 y=1
-x = 1
-if [[ $x > "hello" ]]
+x=1
+if [[ $y -ew "hello" ]]
 then
   echo "$x"
 else

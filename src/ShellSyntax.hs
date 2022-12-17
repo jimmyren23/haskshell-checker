@@ -103,6 +103,7 @@ data IfBop
   | NeN -- -ne
   | AndIf -- &&
   | Reg -- =~
+  | Err 
   deriving (Eq, Show, Enum, Bounded)
 -- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
 --     "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
