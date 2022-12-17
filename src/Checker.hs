@@ -10,29 +10,52 @@ import ShellSyntax
 -- | Finds the first result with error
 eitherOp :: Either String a -> Either String a -> Either String a
 eitherOp (Left err1) _ = Left err1
-eitherOp _  (Left err2) = Left err2
-eitherOp (Right cmd) _  = Right cmd
+eitherOp _ (Left err2) = Left err2
+eitherOp (Right cmd) _ = Right cmd
 
 {- Quoting -}
 
--- | Checks if a variable is quoted (warning)
-checkUnquotedVar :: Var -> Either String Var
-checkUnquotedVar = undefined
+-- | Checks if a variable is quoted
+checkUnquotedVar :: Arg -> Map Var BashCommand -> Either String Arg
+checkUnquotedVar (Arg s) history = case parse S.argUnquotedVar s of
+  Left str -> Right (Arg s)
+  Right var ->
+    if Map.member (V s) history
+      then Left ("Warning: Variable " ++ s ++ " that was previously used is not quoted.")
+      else Right (Arg s)
+checkUnquotedVar arg _ = Right arg
 
--- | DONE - Checks if tilde is used in quotes
-
+-- | Checks if tilde is used in quotes
 checkQuotedTildeExpansionTokens :: Token -> Either String [Token]
 checkQuotedTildeExpansionTokens token =
-    if token == "<tilde>" then Left "Tilde expansion can't be used in strings" else Right [token]
+  if token == "<tilde>" then Left "Tilde expansion can't be used in strings" else Right [token]
+
+-- | Checks if token could be a variable, considering if its in its history
+possVariableRefToken :: Token -> Map Var BashCommand -> Bool
+possVariableRefToken t history =
+  let res = parse S.variableRef t
+   in case res of
+        Left _ -> False
+        Right var -> Map.member var history
+
+tokenListSearch :: [Token] -> Map Var BashCommand -> Either String [Token]
+tokenListSearch [] _ = Right []
+tokenListSearch (t : ts) history =
+  if possVariableRefToken t history
+    then Left ("Warning: Variable " ++ t ++ " that was previously used is not quoted.")
+    else tokenListSearch ts history
 
 -- | Checks if single quotes are closed by apostrophe
-checkSingleQuoteApostrophe :: Value -> Either String Value
-checkSingleQuoteApostrophe = undefined
+checkSingleQuoteApostrophe :: Arg -> Map Var BashCommand -> Either String Arg
+checkSingleQuoteApostrophe (SingleQuote tokens) history = case tokenListSearch tokens history of
+  Left err -> Left err
+  Right _ -> Right (SingleQuote tokens)
+checkSingleQuoteApostrophe val _ = Right val
 
 {- Conditionals -}
 
 -- | Checks if equal-to is missing spaces around itself
-checkMissingSpaces :: Expression -> Maybe String
+checkMissingSpaces :: String -> Either String String
 checkMissingSpaces = undefined
 
 -- | Checks if Expression to see if conditional is implicitly always true through mislabeled expression
@@ -48,7 +71,6 @@ checkQuotedRegex = undefined
 checkUnsupportedOperators :: Expression -> Either String Expression
 checkUnsupportedOperators = undefined
 
-
 -- | Checks if test operators are used in ((..))
 checkTestOperators :: Expression -> Either String Expression
 checkTestOperators = undefined
@@ -61,15 +83,30 @@ checkBackgroundingAndPiping = undefined
 
 -- | Checks if sudo is being redirected
 checkRedirectInSudo :: BashCommand -> Either String BashCommand
-checkRedirectInSudo = undefined
+checkRedirectInSudo (ExecCommand cmd@(ExecName cmdName) args) =
+  if cmdName == "sudo" && hasRedirect args
+    then Left "Warning: sudo is being redirected"
+    else Right (ExecCommand cmd args)
+checkRedirectInSudo cmd = Right cmd
 
--- | Checks if aliases are defined with arguments
-checkArgumentsInAliases :: BashCommand -> Either String BashCommand
-checkArgumentsInAliases = undefined
+redirectArg :: Arg -> Bool
+redirectArg (Arg s) = s == "<" || s == ">" || s == ">>"
+redirectArg _ = False
+
+hasRedirect :: [Arg] -> Bool
+hasRedirect = Prelude.foldr ((||) . redirectArg) False
+
+-- -- | Checks if aliases are defined with arguments
+-- checkArgumentsInAliases :: BashCommand -> Either String BashCommand
+-- checkArgumentsInAliases = undefined
 
 -- | Checks if redirections are in find
 checkRedirectionInFind :: BashCommand -> Either String BashCommand
-checkRedirectionInFind = undefined
+checkRedirectionInFind (ExecCommand cmd@(ExecName cmdName) args) =
+  if cmdName == "find" && hasRedirect args
+    then Left "Warning: Redirections is being used on find command. Rewrite it."
+    else Right (ExecCommand cmd args)
+checkRedirectionInFind cmd = Right cmd
 
 {- Beginner Mistakes -}
 
@@ -88,8 +125,8 @@ checkElseIf :: BashCommand -> Either String BashCommand
 checkElseIf = undefined
 
 -- | Checks if function has not been defined previously
-checkUndefinedFunction :: BashCommand -> Either String BashCommand
-checkUndefinedFunction = undefined
+-- checkUndefinedFunction :: BashCommand -> Either String BashCommand
+-- checkUndefinedFunction = undefined
 
 -- | Checks if only false is present conditional expression
 checkSingleFalse :: BashCommand -> Either String BashCommand
@@ -102,24 +139,64 @@ checkParenthesisInsteadOfTest = undefined
 {- Style -}
 
 -- | Checks if `` is used to interpolate instead of $()
+
+-- | Checks if token uses backticks, should be $() instead
+backTickToken :: Token -> Bool
+backTickToken t =
+  case parse S.backticksP t of
+    Left _ -> False
+    Right _ -> True
+
+unstylisticInterpolation :: Arg -> Either String Arg
+unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left "Warning: Backticks are being used, which has been deprecated. Use $() instead." else Right (SingleQuote tokens)
+unstylisticInterpolation arg = Right arg
+
 checkCommandSubstitution :: BashCommand -> Either String BashCommand
-checkCommandSubstitution = undefined
+checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) =
+  if cmdName == "find" && hasRedirect args
+    then Left "Style Warning: Redirections is being used on find command. Rewrite it."
+    else Right (ExecCommand cmd args)
+checkCommandSubstitution cmd = Right cmd
+
+-- | Checks if outdated $[] is used instead of standard $((..)) in an Arg
+oldArithExpansionArg :: Arg -> Either String Arg
+oldArithExpansionArg (Arg s) = case parse S.oldArithmeticExpansion s of
+  Left _ -> Right (Arg s)
+  Right _ -> Left ("Warning: Old arithmetic expansion is being used in" ++ s ++ ". Use $((..)) instead.")
+oldArithExpansionArg arg = Right arg
 
 -- | Checks if outdated $[] is used instead of standard $((..))
 checkArithmeticParentheses :: BashCommand -> Either String BashCommand
-checkArithmeticParentheses = undefined
+checkArithmeticParentheses (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
+  Left err -> Left err
+  Right args' -> Right (ExecCommand cmd args')
+checkArithmeticParentheses cmd = Right cmd
+
+argArithmeticExpansion :: Arg -> Either String Arg
+argArithmeticExpansion (Arg s) = case parse S.arithmeticExpansion s of
+  Left _ -> Right (Arg s)
+  Right inner -> case parse S.arithmeticInner inner of
+    Left _ -> Left ("Style Warning: $ is being used in $()). " ++ s ++ ". Don't use $ on variables in $((..))")
+    Right _ -> Right (Arg s)
+argArithmeticExpansion arg = Right arg
+
+-- >>> argArithmeticExpansion (Arg "$(($Random % 6))")
+-- Left "Style Warning: $ is being used in $()). $(($Random % 6)). Don't use $ on variables in $((..))"
 
 -- | Checks if $ is used for variables in $((..))
 checkNoVarInArithemetic :: BashCommand -> Either String BashCommand
-checkNoVarInArithemetic = undefined
+checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
+  Left err -> Left err
+  Right args' -> Right (ExecCommand cmd args')
+checkNoVarInArithemetic cmd = Right cmd
 
 -- | Checks if echo is unnecessarily used
-checkEchoUsage :: BashCommand -> Either String BashCommand
-checkEchoUsage = undefined
+-- checkEchoUsage :: BashCommand -> Either String BashCommand
+-- checkEchoUsage = undefined
 
 -- | Checks if cat is unnecessarily used
-checkCatUsage :: BashCommand -> Either String BashCommand
-checkCatUsage = undefined
+-- checkCatUsage :: BashCommand -> Either String BashCommand
+-- checkCatUsage = undefined
 
 {- Data and typing errors -}
 
@@ -127,7 +204,7 @@ checkCatUsage = undefined
 checkArrayAssignAsString :: BashCommand -> Either String BashCommand
 checkArrayAssignAsString = undefined -- \$@ -> Used to access bash command line args array
 
--- | Checks if arrays are referencd as strings
+-- | Checks if arrays are referenced as strings
 checkArrayReferenceInString :: BashCommand -> Either String BashCommand
 checkArrayReferenceInString = undefined
 
@@ -139,29 +216,38 @@ checkStringArrayConcatenation = undefined
 checkStringNumericalComparison :: BashCommand -> Either String BashCommand
 checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
+argUnusedVar :: Arg -> Map Var BashCommand -> Either String Arg
+argUnusedVar (Arg s) history = case parse S.word s of
+  Left _ -> Right (Arg s)
+  Right potentialVar -> if Map.member (V potentialVar) history then Left ("Style Warning: Potentialy trying to use variable " ++ potentialVar ++ ". It is unused. Use $ to use it.") else Right (Arg s)
+argUnusedVar arg _ = Right arg
+
 -- | Checks if variables are being attempted to be used incorrectly - user intends to use it but does not do so correctly using $
-checkUnusedVar :: BashCommand -> Either String Command
-checkUnusedVar = undefined
+checkUnusedVar :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history = case mapM (`argUnusedVar` history) args of
+  Left err -> Left err
+  Right args' -> Right (ExecCommand cmd args')
+checkUnusedVar cmd _ = Right cmd
 
 checkVarInSingleQuotes :: Token -> Either String [Token]
 checkVarInSingleQuotes t =
   case parse S.variableRef t of
-        Left error -> Right [t]
-        Right _ -> Left "Variables cannot be used inside single quotes."
+    Left error -> Right [t]
+    Right _ -> Left "Variables cannot be used inside single quotes."
 
 checkEscapeInSingleQuotes :: Token -> Either String [Token]
 checkEscapeInSingleQuotes t =
   if t == "<escape>" then Left "Escape cannot be used in single quotes" else Right [t]
 
 checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either String [Token]
-checkArgSingleQuotes tokens@(t : ts) history =
-  let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t in
-    case res of
-      Left err -> Left err
-      Right tt -> do
-        tokenss <- checkArgSingleQuotes ts history
-        return (tt ++ tokenss)
-checkArgSingleQuotes [] _  = Right []
+checkArgSingleQuotes (t : tokens) history =
+  let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t
+   in case res of
+        Left err -> Left err
+        Right tt -> do
+          tokenss <- checkArgSingleQuotes tokens history
+          return (tt ++ tokenss)
+checkArgSingleQuotes [] _ = Right []
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
 checkArgDoubleQuotes tokens@(t : ts) history cmd =
@@ -205,7 +291,7 @@ checkArg args@(x : xs) history cmd =
       checkArgDoubleQuotes tokens history cmd
       rArgs <- checkArg xs history cmd
       return (x : rArgs)
-checkArg [] _  _ = Right []
+checkArg [] _ _ = Right []
 
 checkExecCommandArgs :: BashCommand -> Map Var BashCommand -> Either String BashCommand
 checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
@@ -246,10 +332,6 @@ checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
     return cmd
 checkConditionalSt cmd _ = Right cmd
 
-
-
-
-
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"
 
@@ -280,6 +362,28 @@ checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
 
+isTokenVar :: Map Var BashCommand -> Token -> Bool
+isTokenVar history t = case parse S.variableRef t of
+  Left _ -> False
+  Right var -> Map.member var history
+
+-- | Checks if variables are used in printf argument
+checkVarInPrintfArgs :: Arg -> Map Var BashCommand -> Either String Arg
+checkVarInPrintfArgs arg history = case arg of
+  DoubleQuote tokens -> if any (isTokenVar history) tokens then Left "Error: Variables are not allowed in printf arguments." else Right arg
+  _ -> Right arg
+  
+-- >>> checkVarInPrintfArgs (DoubleQuote ["$x"]) (Map.fromList [(V "x", Assign (V "x") (Val (StringVal "hello")))])
+-- Left "Error: Variables are not allowed in printf arguments."
+
 -- | Checks if vaiables are used in printf
-checkNoVariablesInPrintf :: BashCommand -> Either String Command
-checkNoVariablesInPrintf = undefined
+checkNoVariablesInPrintf :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
+  if cmdName == "printf"
+    then
+      let res = checkArg args history (ExecCommand cmd args)
+       in case res of
+            Left err -> Left err
+            Right args -> Right (ExecCommand cmd args)
+    else Right (ExecCommand cmd args)
+checkNoVariablesInPrintf cmd history = Right cmd

@@ -29,15 +29,14 @@ restOfName = startOfName <|> digit
 name :: Parser String
 name = (:) <$> startOfName <*> many restOfName
 
-    -- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
-    -- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
+-- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
+-- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
 -- parses binary operators
 
 bopP :: Parser Bop
 bopP =
   choice
-    [
-      constP "-gt" GtN,
+    [ constP "-gt" GtN,
       constP "-lt" LtN,
       constP "-eq" EqN,
       constP "+" Plus,
@@ -57,8 +56,7 @@ bopP =
 ifBopP :: Parser IfBop
 ifBopP =
   choice
-    [
-      constP "-nt" Nt,
+    [ constP "-nt" Nt,
       constP "-ot" Ot,
       constP "-ef" Ef,
       constP "-ge" GeNIf,
@@ -108,9 +106,6 @@ boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 nilValP :: Parser Value
 nilValP = wsP (constP "nil" NilVal)
 
-
-
-
 {- Parsers for quoted strings -}
 
 -- | parses unallowed tokens in quotes
@@ -118,6 +113,7 @@ errorStrParser :: Parser String
 errorStrParser =
   -- constP "\'" "<singleQuote>" -- single quote
   constP "\\'" "<escape>" <|> constP "~" "<tilde>"
+
 --
 -- Since ' can be used in double quoted string and vice versa, inner has to be defined separately
 --
@@ -126,6 +122,9 @@ innerDq = many (satisfy (/= '\"'))
 
 innerSq :: Parser String
 innerSq = many (satisfy (/= '\''))
+
+innerBacktick :: Parser String
+innerBacktick = many (satisfy (/= '`'))
 
 -- | Double quoted string - extracts out pure string only
 dqStringValP :: Parser String
@@ -139,9 +138,16 @@ dqStringValErrP = between (char '\"') (many (errorStrParser <|> (word <* many sp
 sqStringValP :: Parser String
 sqStringValP = between (char '\'') innerSq (wsP (char '\''))
 
+-- | backticks
+backticksP :: Parser String
+backticksP = between (char '`') innerBacktick (wsP (char '`'))
+
 -- | Single quoted string - parses tokens that aren't allowed as well
 sqStringValErrP :: Parser [Token]
 sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char '\'')
+
+-- >>> parse backticksP "`waefjk~jkw!@#$`"
+-- Right "waefjk~jkw!@#$"
 
 -- >>> parse dqStringValErrP "\"~\""
 -- Right ["<tilde>"]
@@ -163,7 +169,7 @@ expP = compP
     uopexpP =
       baseP
         <|> Op1 <$> uopP <*> uopexpP
-    baseP =  Var <$> variableRef <|> Val <$> valueP
+    baseP = Var <$> variableRef <|> Val <$> valueP
 
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
@@ -174,12 +180,9 @@ ifExpP = bopexpP
     --     <|> Op1 <$> uopP <*> uopexpP
     baseP = IfVar <$> variableRef <|> IfVal <$> valueP
 
-
-
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
 assignP = (Assign . V <$> name) <*> (char '=' *> expP)
-
 
 test_assign :: Test
 test_assign =
@@ -196,19 +199,16 @@ test_assign =
 possibleAssignP :: Parser BashCommand
 possibleAssignP = PossibleAssign <$> (wsAssignP <|> dsAssignP)
 
-
 -- | Parses var with whitespaces (retains them, too)
 wsAssignP :: Parser PossibleAssign
 wsAssignP = PossibleAssignWS <$> (V <$> name) <*> many (char ' ') <*> string "=" <*> many (char ' ') <*> wsP expP
 
 -- | Parses assignments with $ in front of var name
 dsAssignP :: Parser PossibleAssign
-dsAssignP =  PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
-
+dsAssignP = PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
 
 -- >>> parse possibleAssignP "a =1"
 -- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
-
 
 -- >>> parse possibleAssignP "$a=7"
 -- Left "No parses"
@@ -263,15 +263,14 @@ execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP) <* many (char 
 conditionalStrP :: Parser String
 conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
 
-
-
 -- >>> parse conditionalStrP "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 -- Left "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
 conditionalP :: Parser BashCommand
 conditionalP =
--- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
-  Conditional <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")))
+  -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+  Conditional
+    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
@@ -281,7 +280,6 @@ conditionalP =
 -- >>> parse (wsP (string "else") *> wsP blockP <* wsP (string "fi")) "else\n  x=3\nfi\n"
 -- Right (Block [Assign (V "x") (Val (IntVal 3))])
 
-
 -- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
 
 bashCommandP :: Parser BashCommand
@@ -289,6 +287,12 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 
 variableRef :: Parser Var
 variableRef = V <$> (char '$' *> wsP word)
+
+argUnquotedVar :: Parser Arg
+argUnquotedVar = Arg <$> (char '$' *> wsP word)
+
+arithmeticInner :: Parser String
+arithmeticInner = many (satisfy (/= '$'))
 
 
 -- >>> parse bashCommandP "echo \"$hi\""
@@ -300,8 +304,6 @@ variableRef = V <$> (char '$' *> wsP word)
 -- >>> parse variableRef "$xfwejklfj"
 -- Right "xfwejklfj"
 
-
-
 -- >>> parse variableRef "$xewf\""
 -- Left "\""
 
@@ -310,6 +312,10 @@ innerArithmetic = many (satisfy (/= ')'))
 
 arithmeticExpansion :: Parser String
 arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "(") innerArithmetic (stringP ")")) (stringP ")")
+
+oldArithmeticExpansion :: Parser String
+oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
+
 
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"
@@ -324,12 +330,11 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 -- Left "'$hi'"
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
--- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])
 
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
- {- Script parser -}
+{- Script parser -}
 parseShellScript :: String -> IO (Either ParseResult Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
@@ -337,7 +342,7 @@ word2 :: Parser String
 word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 
 -- newlineP :: Parser String
--- newlineP = 
+-- newlineP =
 
 -- >>> parse bashCommandP "echo \"hi\""
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
