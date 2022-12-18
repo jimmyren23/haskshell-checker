@@ -57,8 +57,6 @@ firstRight (Right str) _ = Right str
 firstRight _ (Right str) = Right str
 firstRight (Left err) _ = Left err
 
-newtype History = History (Map Var BashCommand)
-
 -- | Filter the parsing results by a predicate
 filter :: (a -> Bool) -> Parser a -> Parser a
 filter f p = P $ \s -> do
