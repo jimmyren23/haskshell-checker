@@ -107,34 +107,12 @@ evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m 
 evalBashLine bc = do
   myState <- State.get
   let oldHistory = history myState
-  case bc of
-    Conditional _ (Block b1) (Block b2) ->
-      let res = C.checkConditionalSt bc oldHistory -- Checker
-       in case res of
-            Left err -> throwError $ errorS err
-            Right _ -> do
-              -- Make sure to evaluate nested blocks too
-              evalAllBashLines b1
-              evalAllBashLines b2
-              return (bc, [])
-    _ ->
-      let res = C.checkExecCommandArgs bc oldHistory `C.eitherOp` C.checkAssignmentExp bc oldHistory
-       in case res of
-            Left err -> throwError $ errorS err
-            Right _ -> do
-              updateState bc
-              return (bc, [])
-
--- evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m (BashCommand, [Message])
--- evalBashLine bc = do
---   myState <- State.get
---   let oldHistory = history myState
---   let oldVarFrequency = varFrequency myState
---   case C.mainChecker bc oldHistory oldVarFrequency of
---     Left err -> throwError $ errorS err
---     Right (_, messages) -> do
---       updateState bc
---       return (bc, messages)
+  let oldVarFrequency = varFrequency myState
+  case C.mainChecker bc oldHistory oldVarFrequency of
+    Left err -> throwError $ errorS err
+    Right (_, messages) -> do
+      updateState bc
+      return (bc, messages)
 
 -- | Evaluate all bashlines
 evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m (BashCommand, [Message])
