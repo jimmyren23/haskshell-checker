@@ -298,18 +298,26 @@ checkArrayAssignAsString exp@(Val (StringVal str)) =
 checkArrayAssignAsString exp = Right exp
 
 -- | Checks if variables are defined but not used
-argUnusedVar :: Arg -> Map Var BashCommand -> Either Message Arg
-argUnusedVar (Arg s) history = case parse S.word s of
+argUnusedVar :: Map Var BashCommand -> Map Var Int -> Arg -> Either Message Arg
+argUnusedVar history varFreq (Arg s) = case parse S.word s of
   Left _ -> Right (Arg s)
-  Right potentialVar -> if Map.member (V potentialVar) history then Left (WarningMessage $ "Style Warning: Potentialy trying to use variable " ++ potentialVar ++ ". It is unused. Use $ to use it.") else Right (Arg s)
-argUnusedVar arg _ = Right arg
+  Right potentialVar ->
+    if Map.member (V potentialVar) history
+      then case Map.lookup (V potentialVar) varFreq of
+        Just freq ->
+          if freq == 0
+            then Left (WarningMessage $ "Style Warning: Potentialy trying to use variable " ++ potentialVar ++ ". It is unused. Use $ to use it.")
+            else Left (WarningMessage "Warning: Previously used variable")
+        Nothing -> Right (Arg s)
+      else Right (Arg s)
+argUnusedVar _ _ arg = Right arg
 
 -- | Checks if variables are being attempted to be used incorrectly - user intends to use it but does not do so correctly using $
-checkUnusedVar :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history = case mapM (`argUnusedVar` history) args of
+checkUnusedVar :: BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message BashCommand
+checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history varFreq = case mapM (argUnusedVar history varFreq) args of
   Left err -> Left err
   Right args' -> Right (ExecCommand cmd args')
-checkUnusedVar cmd _ = Right cmd
+checkUnusedVar cmd _ _ = Right cmd
 
 -- | Checks if variables are used in single quotes
 checkVarInSingleQuotes :: Token -> Either Message [Token]
@@ -480,7 +488,6 @@ bashCheckers =
     checkCommandSubstitution,
     checkArithmeticParentheses,
     checkNoVarInArithemetic,
-    checkUnusedVar,
     checkExecCommandArgs,
     checkPrintArgCount,
     checkNoVariablesInPrintf
