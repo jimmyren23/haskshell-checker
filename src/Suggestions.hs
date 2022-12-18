@@ -49,11 +49,12 @@ updateVarFrequency var = do
   let newVarFrequency = Map.insertWith (+) var 1 oldVarFrequency
   put myState {varFrequency = newVarFrequency}
 
+-- | updates state using all commands within a block.
 updateBlock :: MonadState MyState m => Block -> m ()
+updateBlock (Block []) = return ()
 updateBlock (Block (x : xs)) = do
   updateState x
   updateBlock (Block xs)
-updateBlock (Block []) = return ()
 
 -- | Action that updates the state
 updateState :: MonadState MyState m => BashCommand -> m ()
@@ -114,23 +115,6 @@ showEx f (Right v) = "<Result>: " ++ f v
 -- "<HaskShell> Error"
 -- >>> showEx show (Right 5)
 -- "Result: 5"
-
--- goExSt :: String -> String
--- goExSt e =
---   evalLine e -- :: StateT Int (ExceptT String Identity) Int
---     & flip runStateT Map.empty
---     & runExceptT
---     & runIdentity
---     & showEx (showSt show)
-
--- goExStAll :: [String] -> String
--- goExStAll (x : xs) =
---   evalAllLines (x : xs) -- :: StateT Int (ExceptT String Identity) Int
---     & flip runStateT Map.empty
---     & runExceptT
---     & runIdentity
---     & showEx (showSt show)
--- goExStAll [] = ""
 
 evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m BashCommand
 evalBashLine bc = do
