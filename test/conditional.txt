@@ -1,7 +1,7 @@
 x=1
-if [ $x -ew "hii" ]
+if [ $x > "hii" ]
 then
-  echo "$y"
+  echo "$x"
 else
   echo "hi"
 fi

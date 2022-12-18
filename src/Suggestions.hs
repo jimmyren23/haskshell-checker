@@ -80,8 +80,12 @@ updateState bc = case bc of
     return ()
 
 -- | displays the error message
-errorS :: Show a => a -> String
-errorS = show
+errorS :: C.Message -> String
+errorS m = 
+  case m of
+    C.ErrorMessage s -> "<ERROR> " ++ s
+    C.WarningMessage s -> "<WARNING> " ++ s
+
 
 -- | Shows the history and variable reference frequency
 showSt :: (a -> String) -> (a, MyState) -> String
@@ -89,8 +93,8 @@ showSt f (v, myState) = f v ++ ", history: " ++ show (history myState) ++ ", var
 
 -- | Show the result of runExceptT, parameterized by a function to show the value
 showEx :: (a -> String) -> Either String a -> String
-showEx _ (Left m) = "<Error>: " ++ m
-showEx f (Right v) = "<Result>: " ++ f v
+showEx _ (Left m) = m
+showEx f (Right v) = "<PARSED OUTPUT>: " ++ f v
 
 -- >>> showEx show (Left "Error")
 -- "<Error>: Error"
@@ -142,26 +146,5 @@ evalScript :: String -> IO ()
 evalScript filename = do
   res <- parseShellScript filename
   case res of
-    Left err -> print (errorS err)
-    Right (Block bcs) -> print (evalAll bcs)
-
--- | Evaluates a single line
--- evalLine :: (MonadError String m, MonadState MyState m) => String -> m BashCommand
--- evalLine s = case parse S.bashCommandP s of
---   Left err -> throwError $ errorS err
---   Right bc -> do
---     myState <- State.get
---     case C.checkExecCommandArgs bc (history myState) of
---       Left err -> throwError err
---       Right _ -> do
---         updateState bc
---         return bc
-
--- -- | Evaluates all lines in a script
--- evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
--- evalAllLines [x] = do
---   evalLine x
--- evalAllLines (x : xs) = do
---   evalLine x
---   evalAllLines xs
--- evalAllLines [] = undefined
+    Left err -> putStrLn err
+    Right (Block bcs) -> putStrLn ("\t" ++ evalAll bcs)

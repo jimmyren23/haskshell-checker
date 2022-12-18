@@ -68,11 +68,6 @@ checkConstantTestExpressions exp =
     IfOp3 (IfVal _) op (IfVal _) -> Left (WarningMessage $ "The expression `" ++ pretty exp ++ "` is constant")
     _ -> Right exp
 
--- | Checks if equal-to is missing spaces around itself
-checkMissingSpaces :: IfExpression -> Either String IfExpression
-checkMissingSpaces exp = undefined
-
-
 -- | Checks if Expression to see if conditional is implicitly always true through mislabeled expression
 checkLiteralVacuousTrue :: IfExpression -> Either Message IfExpression
 checkLiteralVacuousTrue exp =
@@ -90,7 +85,7 @@ checkUnsupportedOperators :: IfExpression -> Either Message IfExpression
 checkUnsupportedOperators exp =
   case exp of
     IfOp2 _  Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
-    IfOp3 _  Err _ -> Left (ErrorMessage $ "Error: operator in `" ++ pretty exp ++ "` is not supported.")
+    IfOp3 _  Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
     _ -> Right exp
 
 -- | Checks if test operators are used in ((..))
@@ -103,6 +98,47 @@ checkTestOperators exp =
 -- | Checks if piping and backgrounding are part of condition
 checkBackgroundingAndPiping :: Expression -> Either String Expression
 checkBackgroundingAndPiping = undefined
+
+checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either Message IfExpression
+checkVarInExp exp history fullExp =
+  case exp of
+    IfVar var ->
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
+            Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp))
+            Just _ -> Right fullExp
+    IfOp1 _ exp -> checkVarInExp exp history fullExp
+    IfOp2 exp1 _ exp2 -> do
+      checkVarInExp exp1 history fullExp
+      checkVarInExp exp2 history fullExp
+    IfOp3 exp1 _ exp2 -> do
+      checkVarInExp exp1 history fullExp
+      checkVarInExp exp2 history fullExp
+    _ -> Right fullExp
+
+checkNumericalCompStrInExp :: IfExpression -> Either Message IfExpression
+checkNumericalCompStrInExp exp =
+  case exp of
+    IfOp2 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp2 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp3 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp3 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    _ -> Right exp
+
+checkAndInExp :: IfExpression -> Either Message IfExpression
+checkAndInExp exp =
+  case exp of
+    IfOp2 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
+    IfOp3 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
+    _ -> Right exp
+
+checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
+  do
+    checkTestOperators exp `eitherOp` checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp `eitherOp` checkConstantTestExpressions exp `eitherOp` checkLiteralVacuousTrue exp `eitherOp` checkUnsupportedOperators exp
+    return cmd
+checkConditionalSt cmd _ = Right cmd
 
 {- Freq Misused Commands -}
 
@@ -323,46 +359,6 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
-checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either Message IfExpression
-checkVarInExp exp history fullExp =
-  case exp of
-    IfVar var ->
-      let V possVar = var
-       in case Map.lookup var history of
-            Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
-            Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp))
-            Just _ -> Right fullExp
-    IfOp1 _ exp -> checkVarInExp exp history fullExp
-    IfOp2 exp1 _ exp2 -> do
-      checkVarInExp exp1 history fullExp
-      checkVarInExp exp2 history fullExp
-    IfOp3 exp1 _ exp2 -> do
-      checkVarInExp exp1 history fullExp
-      checkVarInExp exp2 history fullExp
-    _ -> Right fullExp
-
-checkNumericalCompStrInExp :: IfExpression -> Either Message IfExpression
-checkNumericalCompStrInExp exp =
-  case exp of
-    IfOp2 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    IfOp2 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    IfOp3 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    IfOp3 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    _ -> Right exp
-
-checkAndInExp :: IfExpression -> Either Message IfExpression
-checkAndInExp exp =
-  case exp of
-    IfOp2 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
-    IfOp3 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
-    _ -> Right exp
-
-checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
-  do
-    checkTestOperators exp `eitherOp` checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp `eitherOp` checkConstantTestExpressions exp `eitherOp` checkLiteralVacuousTrue exp `eitherOp` checkUnsupportedOperators exp
-    return cmd
-checkConditionalSt cmd _ = Right cmd
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"
@@ -386,7 +382,7 @@ hasCorrectNumberPrintfArgs (x : xs) = case x of
 
 -- | Checks if argument count doesn't match in printf
 checkPrintArgCount :: BashCommand -> Either String BashCommand
-checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left ("Error: Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
+checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left ("Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
 checkPrintArgCount cmd = Right cmd
 
 -- | Checks if word boundaries are lost in array eval
@@ -412,7 +408,7 @@ isTokenVar history t = case parse S.variableRef t of
 -- | Checks if variables are used in printf argument
 checkVarInPrintfArgs :: Arg -> Map Var BashCommand -> Either String Arg
 checkVarInPrintfArgs arg history = case arg of
-  DoubleQuote tokens -> if any (isTokenVar history) tokens then Left "Error: Variables are not allowed in printf arguments." else Right arg
+  DoubleQuote tokens -> if any (isTokenVar history) tokens then Left "Variables are not allowed in printf arguments." else Right arg
   _ -> Right arg
 
 -- >>> checkVarInPrintfArgs (DoubleQuote ["$x"]) (Map.fromList [(V "x", Assign (V "x") (Val (StringVal "hello")))])
