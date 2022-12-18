@@ -1,5 +1,6 @@
 module Checker where
 
+import Control.Applicative (Alternative (..))
 import Data.Map
 import Data.Map qualified as Map
 import Parsing
@@ -17,7 +18,23 @@ type History = Map Var BashCommand
 
 type VarFrequency = Map Var Int
 
-data CommandCheck a = CommandCheck History VarFrequency (a -> Map Var BashCommand -> Map Var Int -> Either Message a)
+newtype CommandCheck a = CommandCheck {checkCommand :: a -> Map Var BashCommand -> Map Var Int -> Either Message a}
+
+instance Applicative CommandCheck where
+  pure :: a -> CommandCheck a
+  pure a = CommandCheck (\_ _ _ -> Right a)
+
+  (<*>) :: CommandCheck (a -> b) -> CommandCheck a -> CommandCheck b
+  CommandCheck f <*> CommandCheck g = CommandCheck $ \x env vars -> do
+    y <- f x env vars
+    z <- g x env vars
+    return (y z)
+instance Alternative CommandCheck where
+  empty :: CommandCheck a
+  empty = CommandCheck (\_ _ _ -> Left (WarningMessage "error"))
+
+  (<|>) :: CommandCheck a -> CommandCheck a -> CommandCheck a
+  p1 <|> p2 = CommandCheck (\a history freq -> checkCommand p1 a history freq `eitherOp` checkCommand p2 a history freq)
 
 -- instance Alternative Parser where
 --   empty :: Parser a
@@ -35,14 +52,14 @@ eitherOp (Right cmd) _ = Right cmd
 {- Quoting -}
 
 -- | Checks if a variable is quoted
-checkUnquotedVar :: Arg -> Map Var BashCommand -> Either Message Arg
-checkUnquotedVar (Arg s) history = case parse S.argUnquotedVar s of
+checkUnquotedVar :: Arg -> Map Var BashCommand -> Map Var Int -> Either Message Arg
+checkUnquotedVar (Arg s) history _ = case parse S.argUnquotedVar s of
   Left str -> Right (Arg s)
   Right var ->
     if Map.member (V s) history
       then Left (WarningMessage ("Warning: Variable " ++ s ++ " that was previously used is not quoted."))
       else Right (Arg s)
-checkUnquotedVar arg _ = Right arg
+checkUnquotedVar arg _ _ = Right arg
 
 -- | Checks if tilde is used in quotes
 checkQuotedTildeExpansionTokens :: Token -> Either Message [Token]
