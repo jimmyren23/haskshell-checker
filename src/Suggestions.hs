@@ -125,6 +125,17 @@ evalBashLine bc = do
               updateState bc
               return (bc, [])
 
+-- evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m (BashCommand, [Message])
+-- evalBashLine bc = do
+--   myState <- State.get
+--   let oldHistory = history myState
+--   let oldVarFrequency = varFrequency myState
+--   case C.mainChecker bc oldHistory oldVarFrequency of
+--     Left err -> throwError $ errorS err
+--     Right (_, messages) -> do
+--       updateState bc
+--       return (bc, messages)
+
 -- | Evaluate all bashlines
 evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m (BashCommand, [Message])
 evalAllBashLines [x] = do
