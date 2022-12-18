@@ -75,21 +75,20 @@ checkLiteralVacuousTrue exp =
     IfOp1 op (IfVal (StringVal _)) -> if op `elem` [LengthZero, LengthNonZero] then Left (ErrorMessage $ "Argument to " ++ pretty op ++ " is always true.") else Right exp
     _ -> Right exp
 
-verifyRegStrings :: String -> IfExpression -> Either Message IfExpression
-verifyRegStrings s exp =
-  case parse S.regex s of
-    Left _ -> Right exp
-    Right _ -> Left (WarningMessage $ "Remove quotes in `" ++ pretty exp ++ "` to match as a regex instead of literally.")
-    
--- | Checks if Quoted regex in =~
+-- | Checks if regex is quoted in expression with =~
 checkQuotedRegex :: IfExpression -> Either Message IfExpression
 checkQuotedRegex exp =
   case exp of
     IfOp2 expL op (IfVal (StringVal s)) -> if op == Reg then verifyRegStrings s exp else Right exp
     _ -> Right exp
 
+verifyRegStrings :: String -> IfExpression -> Either Message IfExpression
+verifyRegStrings s exp =
+  case parse S.regex s of
+    Left _ -> Right exp
+    Right _ -> Left (WarningMessage $ "Remove quotes in `" ++ pretty exp ++ "` to match as a regex instead of literally.")
+
 -- | Checks if unsupported operators are used
--- TODO: Define a list of supported operators in ShellSyntax.hs
 checkUnsupportedOperators :: IfExpression -> Either Message IfExpression
 checkUnsupportedOperators exp =
   case exp of
@@ -104,10 +103,7 @@ checkTestOperators exp =
     IfOp3 _ op _ -> if op `notElem` arithmeticOps then Left (WarningMessage $ "Test operators like " ++ pretty op ++ " can't be used in arithmetic contexts.") else Right exp
     _ -> Right exp
 
--- | Checks if piping and backgrounding are part of condition
-checkBackgroundingAndPiping :: Expression -> Either String Expression
-checkBackgroundingAndPiping = undefined
-
+-- | Checks if unassigned variables are used
 checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either Message IfExpression
 checkVarInExp exp history fullExp =
   case exp of
@@ -126,6 +122,7 @@ checkVarInExp exp history fullExp =
       checkVarInExp exp2 history fullExp
     _ -> Right fullExp
 
+-- | Checks if numerical operators are used against strings
 checkNumericalCompStrInExp :: IfExpression -> Either Message IfExpression
 checkNumericalCompStrInExp exp =
   case exp of
@@ -152,10 +149,10 @@ checkConditionalSt cmd _ = Right cmd
 {- Freq Misused Commands -}
 
 -- | Checks if sudo is being redirected
-checkRedirectInSudo :: BashCommand -> Either String BashCommand
+checkRedirectInSudo :: BashCommand -> Either Message BashCommand
 checkRedirectInSudo (ExecCommand cmd@(ExecName cmdName) args) =
   if cmdName == "sudo" && hasRedirect args
-    then Left "Warning: sudo is being redirected"
+    then Left (WarningMessage "sudo is being redirected")
     else Right (ExecCommand cmd args)
 checkRedirectInSudo cmd = Right cmd
 
@@ -171,10 +168,10 @@ hasRedirect = Prelude.foldr ((||) . redirectArg) False
 -- checkArgumentsInAliases = undefined
 
 -- | Checks if redirections are in find
-checkRedirectionInFind :: BashCommand -> Either String BashCommand
+checkRedirectionInFind :: BashCommand -> Either Message BashCommand
 checkRedirectionInFind (ExecCommand cmd@(ExecName cmdName) args) =
   if cmdName == "find" && hasRedirect args
-    then Left "Warning: Redirections is being used on find command. Rewrite it."
+    then Left (WarningMessage "Redirections is being used on find command. Rewrite it.")
     else Right (ExecCommand cmd args)
 checkRedirectionInFind cmd = Right cmd
 
@@ -217,36 +214,36 @@ backTickToken t =
     Left _ -> False
     Right _ -> True
 
-unstylisticInterpolation :: Arg -> Either String Arg
-unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left "Warning: Backticks are being used, which has been deprecated. Use $() instead." else Right (SingleQuote tokens)
+unstylisticInterpolation :: Arg -> Either Message Arg
+unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left (WarningMessage "Backticks are being used, which has been deprecated. Use $() instead.") else Right (SingleQuote tokens)
 unstylisticInterpolation arg = Right arg
 
-checkCommandSubstitution :: BashCommand -> Either String BashCommand
+checkCommandSubstitution :: BashCommand -> Either Message BashCommand
 checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) =
   if cmdName == "find" && hasRedirect args
-    then Left "Style Warning: Redirections is being used on find command. Rewrite it."
+    then Left (WarningMessage "Style Warning: Redirections is being used on find command. Rewrite it.")
     else Right (ExecCommand cmd args)
 checkCommandSubstitution cmd = Right cmd
 
 -- | Checks if outdated $[] is used instead of standard $((..)) in an Arg
-oldArithExpansionArg :: Arg -> Either String Arg
+oldArithExpansionArg :: Arg -> Either Message Arg
 oldArithExpansionArg (Arg s) = case parse S.oldArithmeticExpansion s of
   Left _ -> Right (Arg s)
-  Right _ -> Left ("Warning: Old arithmetic expansion is being used in" ++ s ++ ". Use $((..)) instead.")
+  Right _ -> Left (WarningMessage $ "Old arithmetic expansion is being used in" ++ s ++ ". Use $((..)) instead.")
 oldArithExpansionArg arg = Right arg
 
 -- | Checks if outdated $[] is used instead of standard $((..))
-checkArithmeticParentheses :: BashCommand -> Either String BashCommand
+checkArithmeticParentheses :: BashCommand -> Either Message BashCommand
 checkArithmeticParentheses (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
   Left err -> Left err
   Right args' -> Right (ExecCommand cmd args')
 checkArithmeticParentheses cmd = Right cmd
 
-argArithmeticExpansion :: Arg -> Either String Arg
+argArithmeticExpansion :: Arg -> Either Message Arg
 argArithmeticExpansion (Arg s) = case parse S.arithmeticExpansion s of
   Left _ -> Right (Arg s)
   Right inner -> case parse S.arithmeticInner inner of
-    Left _ -> Left ("Style Warning: $ is being used in $()). " ++ s ++ ". Don't use $ on variables in $((..))")
+    Left _ -> Left (WarningMessage $ "Style Warning: $ is being used in $()). " ++ s ++ ". Don't use $ on variables in $((..))")
     Right _ -> Right (Arg s)
 argArithmeticExpansion arg = Right arg
 
@@ -254,7 +251,7 @@ argArithmeticExpansion arg = Right arg
 -- Left "Style Warning: $ is being used in $()). $(($Random % 6)). Don't use $ on variables in $((..))"
 
 -- | Checks if $ is used for variables in $((..))
-checkNoVarInArithemetic :: BashCommand -> Either String BashCommand
+checkNoVarInArithemetic :: BashCommand -> Either Message BashCommand
 checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
   Left err -> Left err
   Right args' -> Right (ExecCommand cmd args')
@@ -282,18 +279,19 @@ checkArrayReferenceInString = undefined
 checkStringArrayConcatenation :: BashCommand -> Either String BashCommand
 checkStringArrayConcatenation = undefined
 
--- | Checks if numbers are being compared as strings
+-- | Checks if numerical operators are used against strings
 checkStringNumericalComparison :: BashCommand -> Either String BashCommand
 checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
-argUnusedVar :: Arg -> Map Var BashCommand -> Either String Arg
+-- | Checks if variables are defined but not used 
+argUnusedVar :: Arg -> Map Var BashCommand -> Either Message Arg
 argUnusedVar (Arg s) history = case parse S.word s of
   Left _ -> Right (Arg s)
-  Right potentialVar -> if Map.member (V potentialVar) history then Left ("Style Warning: Potentialy trying to use variable " ++ potentialVar ++ ". It is unused. Use $ to use it.") else Right (Arg s)
+  Right potentialVar -> if Map.member (V potentialVar) history then Left (WarningMessage $ "Style Warning: Potentialy trying to use variable " ++ potentialVar ++ ". It is unused. Use $ to use it.") else Right (Arg s)
 argUnusedVar arg _ = Right arg
 
 -- | Checks if variables are being attempted to be used incorrectly - user intends to use it but does not do so correctly using $
-checkUnusedVar :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkUnusedVar :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history = case mapM (`argUnusedVar` history) args of
   Left err -> Left err
   Right args' -> Right (ExecCommand cmd args')
@@ -334,10 +332,6 @@ checkArgDoubleQuotes tokens@(t : ts) history cmd =
                 return (t : tokenss)
 checkArgDoubleQuotes [] _ _ = Right []
 
--- | How to print original command for possible assigns?
--- | 1. Store in history map as a string in its original form
--- | 2. Different types of possible assign
--- | 3. Store = as part of var string
 checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
 checkArg args@(x : xs) history cmd =
   case x of
@@ -390,8 +384,8 @@ hasCorrectNumberPrintfArgs (x : xs) = case x of
   _ -> hasCorrectNumberPrintfArgs xs
 
 -- | Checks if argument count doesn't match in printf
-checkPrintArgCount :: BashCommand -> Either String BashCommand
-checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left ("Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
+checkPrintArgCount :: BashCommand -> Either Message BashCommand
+checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left (WarningMessage $ "Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
 checkPrintArgCount cmd = Right cmd
 
 -- | Checks if word boundaries are lost in array eval
@@ -415,9 +409,9 @@ isTokenVar history t = case parse S.variableRef t of
   Right var -> Map.member var history
 
 -- | Checks if variables are used in printf argument
-checkVarInPrintfArgs :: Arg -> Map Var BashCommand -> Either String Arg
+checkVarInPrintfArgs :: Arg -> Map Var BashCommand -> Either Message Arg
 checkVarInPrintfArgs arg history = case arg of
-  DoubleQuote tokens -> if any (isTokenVar history) tokens then Left "Variables are not allowed in printf arguments." else Right arg
+  DoubleQuote tokens -> if any (isTokenVar history) tokens then Left (WarningMessage "Variables are not allowed in printf arguments.") else Right arg
   _ -> Right arg
 
 -- >>> checkVarInPrintfArgs (DoubleQuote ["$x"]) (Map.fromList [(V "x", Assign (V "x") (Val (StringVal "hello")))])
