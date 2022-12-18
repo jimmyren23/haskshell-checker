@@ -104,9 +104,9 @@ evalBashLine bc = do
   let oldHistory = history myState
   case bc of
     Conditional _ (Block b1) (Block b2) ->
-      let res = C.checkConditionalSt bc oldHistory
+      let res = C.checkConditionalSt bc oldHistory -- Checker
        in case res of
-            Left err -> throwError err
+            Left err -> throwError $ errorS err
             Right _ -> do
               -- Make sure to evaluate nested blocks too
               evalAllBashLines b1
