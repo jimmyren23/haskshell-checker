@@ -83,6 +83,7 @@ updateState bc = case bc of
 errorS :: Show a => a -> String
 errorS = show
 
+-- | Evaluates a single line
 evalLine :: (MonadError String m, MonadState MyState m) => String -> m BashCommand
 evalLine s = case parse S.bashCommandP s of
   Left err -> throwError $ errorS err
@@ -94,6 +95,7 @@ evalLine s = case parse S.bashCommandP s of
         updateState bc
         return bc
 
+-- | Evaluates all lines in a script
 evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
 evalAllLines [x] = do
   evalLine x
@@ -102,11 +104,11 @@ evalAllLines (x : xs) = do
   evalAllLines xs
 evalAllLines [] = undefined
 
+-- | Shows the history and variable reference frequency
 showSt :: (a -> String) -> (a, MyState) -> String
 showSt f (v, myState) = f v ++ ", history: " ++ show (history myState) ++ ", varFrequency: " ++ show (varFrequency myState)
 
--- | Show the result of runExceptT, parameterized by a function
--- to show the value
+-- | Show the result of runExceptT, parameterized by a function to show the value
 showEx :: (a -> String) -> Either String a -> String
 showEx _ (Left m) = "<Error>: " ++ m
 showEx f (Right v) = "<Result>: " ++ f v
@@ -116,6 +118,7 @@ showEx f (Right v) = "<Result>: " ++ f v
 -- >>> showEx show (Right 5)
 -- "Result: 5"
 
+-- | Evaluate a bashline
 evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m BashCommand
 evalBashLine bc = do
   myState <- State.get
@@ -138,6 +141,7 @@ evalBashLine bc = do
               updateState bc
               return bc
 
+-- | Evaluate all bashlines
 evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m BashCommand
 evalAllBashLines [x] = do
   evalBashLine x
@@ -146,7 +150,6 @@ evalAllBashLines (x : xs) = do
   evalAllBashLines xs
 evalAllBashLines [] = undefined
 
--- | Take
 evalAll :: [BashCommand] -> String
 evalAll bcs =
   evalAllBashLines bcs

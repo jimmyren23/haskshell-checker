@@ -374,7 +374,7 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
 -- >>> parse newlineP "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
--- Left "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- Variable not in scope: newlineP :: Parser a
 
 -- How it looks : "if [y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
@@ -382,7 +382,7 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- Right (Val (IntVal 1))
 
 -- >>> parse untilNewline "\nif [[ $x -ew \\\"hello\\\" ]]\n"
--- Right "if [[ $x -ew \\\"hello\\\" ]]"
+-- Right ""
 
 -- >>> parse expP "$y < 1"
 -- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
