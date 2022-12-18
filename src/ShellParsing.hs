@@ -29,77 +29,55 @@ restOfName = startOfName <|> digit
 name :: Parser String
 name = (:) <$> startOfName <*> many restOfName
 
--- "-nt", "-ot", "-ef", "==", "!=", "<=", ">=", "-eq", "-ne", "-lt", "-le",
--- "-gt", "-ge", "=~", ">", "<", "=", "\\<", "\\>", "\\<=", "\\>="
--- parses binary operators
-
--- parse through any character, if it is a %, parse the next
-
+-- | Parses a variable name
 nonPrintFArg :: Parser String
 nonPrintFArg = many (satisfy (/= '%'))
 
-data PrintfToken = Token String | Type
-  deriving (Show, Eq)
+-- | Parser for format specificators in printf
+formatSpecP :: Parser PrintfToken
+formatSpecP =
+  constP "%s" FormatSpec
+    <|> constP "%d" FormatSpec
+    <|> constP "%f" FormatSpec
+    <|> constP "%c" FormatSpec
+    <|> constP "%b" FormatSpec
+    <|> constP "%x" FormatSpec
+    <|> constP "%o" FormatSpec
+    <|> constP "%e" FormatSpec
+    <|> constP "%g" FormatSpec
+    <|> constP "%a" FormatSpec
 
--- | Parses a printf argument
-printfArg :: Parser PrintfToken
-printfArg =
-  constP "%s" Type
-    <|> constP "%d" Type
-    <|> constP "%f" Type
-    <|> constP "%c" Type
-    <|> constP "%b" Type
-    <|> constP "%x" Type
-    <|> constP "%o" Type
-    <|> constP "%e" Type
-    <|> constP "%g" Type
-    <|> constP "%a" Type
-
-startOfType :: Parser Char
-startOfType = satisfy (/= '%')
-
+-- | Parser for all tokens in printf except format specificators
 printfToken :: Parser PrintfToken
-printfToken = Token <$> ((:) <$> startOfType <*> many startOfType)
+printfToken = Token <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
 
+-- | Parser for printf
 printfParser :: Parser [PrintfToken]
-printfParser = many (printfArg <|> printfToken)
+printfParser = many (formatSpecP <|> printfToken)
 
+-- | Counts the number of format specificators in a printf
 typeCounter :: [PrintfToken] -> Int
-typeCounter = foldr (\x acc -> case x of Type -> acc + 1; _ -> acc) 0
+typeCounter = foldr (\x acc -> case x of FormatSpec -> acc + 1; _ -> acc) 0
 
+-- | Counts the number of format specificators of the tokens inside a format of a printf
 tokenPars :: [Token] -> Int
 tokenPars (x : xs) = case parse printfParser x of
   Left _ -> tokenPars xs
   Right printfTokens -> helper printfTokens + tokenPars xs
     where
-      helper = foldr (\x acc -> case x of Type -> acc + 1; _ -> acc) 0
+      helper = foldr (\x acc -> case x of FormatSpec -> acc + 1; _ -> acc) 0
 tokenPars [] = 0
 
 -- >>> parse printfParser "%s waejfklawjfe wefjklawfjl %s"
--- Right [Type,Token "waejfklawjfe wefjklawfjl ",Type]
-
--- >>> typeCounter [Type,Token "waejfklawjfe wefjklawfjl ",Type]
--- 2
+-- Right [FormatSpec,Token "waejfklawjfe wefjklawfjl ",FormatSpec]
 
 -- >>> tokenPars ["%s awefjkwl", "%s", "wefjkwl %g"]
 -- 3
 
 -- >>> parse printfToken "eawjawefjklewkflw"
 -- Right (Token "eawjawefjklewkflw")
-
--- >>> parse printfArg "%s"
--- Right Type
-
 -- >>> parse printfParser "%sewjfk%s"
--- Right (PrintBlock [Type,Token "ewjfk",Type])
--- >>> parse printfArg "%swefjkl%s"
--- Left "wefjkl%s"
-
--- argumentCounter :: Parser Int
--- argumentCounter = do
---   char '-'
---   n <- many digit
---   return $ read n
+-- Right [FormatSpec,Token "ewjfk",FormatSpec]
 
 -- | Parses binary operators for non-conditional expressions
 bopP :: Parser Bop
@@ -268,6 +246,7 @@ wordP = Word <$> wsP (many (satisfy (/= ' ')) <* string " ")
 valueP :: Parser Value
 valueP = intValP <|> boolValP <|> stringValP
 
+-- | Parses a expressions
 expP :: Parser Expression
 expP = compP
   where
@@ -280,6 +259,7 @@ expP = compP
         <|> Op1 <$> uopP <*> uopexpP
     baseP = Var <$> variableRef <|> Val <$> valueP
 
+-- | Parses a conditional expression
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
   where
@@ -320,15 +300,33 @@ wsAssignP = PossibleAssignWS <$> (V <$> name) <*> many (char ' ') <*> string "="
 dsAssignP :: Parser PossibleAssign
 dsAssignP = PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
 
+variableRef :: Parser Var
+variableRef = V <$> (char '$' *> wsP word)
+
+argUnquotedVar :: Parser Arg
+argUnquotedVar = Arg <$> (char '$' *> wsP word)
+
+arithmeticInner :: Parser String
+arithmeticInner = many (satisfy (/= '$'))
+
+innerArithmetic :: Parser String
+innerArithmetic = many (satisfy (/= ')'))
+
+arithmeticExpansion :: Parser String
+arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "(") innerArithmetic (stringP ")")) (stringP ")")
+
+oldArithmeticExpansion :: Parser String
+oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
+
 -- >>> parse possibleAssignP "a =1"
 -- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
 
 -- >>> parse possibleAssignP "$a=7"
--- Left "No parses"
+-- Right (PossibleAssign (PossibleAssignDS (V "a") "=" (Val (IntVal 7))))
 
 -- Right (PossibleAssign (V "a") (Val (IntVal 7)))
 -- >>> parse possibleAssignP "a =3"
--- Right (PossibleAssign (V "a") (Val (IntVal 3)))
+-- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 3))))
 
 -- | parses anything thats not an operator, quote, or space
 notQuoteOrSpaceP :: Parser Char
@@ -409,35 +407,8 @@ conditionalP =
 bashCommandP :: Parser BashCommand
 bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 
-variableRef :: Parser Var
-variableRef = V <$> (char '$' *> wsP word)
-
-argUnquotedVar :: Parser Arg
-argUnquotedVar = Arg <$> (char '$' *> wsP word)
-
-arithmeticInner :: Parser String
-arithmeticInner = many (satisfy (/= '$'))
-
 -- >>> parse bashCommandP "echo \"$hi\""
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
-
--- >>> parse variableRef "$x"
--- Right "x"
-
--- >>> parse variableRef "$xfwejklfj"
--- Right "xfwejklfj"
-
--- >>> parse variableRef "$xewf\""
--- Left "\""
-
-innerArithmetic :: Parser String
-innerArithmetic = many (satisfy (/= ')'))
-
-arithmeticExpansion :: Parser String
-arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "(") innerArithmetic (stringP ")")) (stringP ")")
-
-oldArithmeticExpansion :: Parser String
-oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
 
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"
@@ -449,15 +420,16 @@ oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (s
 -- Right (PossibleAssign (V "x") (Val (IntVal 3)))
 
 -- >>> parse bashCommandP "echo '$hi'"
--- Left "'$hi'"
+-- Right (ExecCommand (ExecName "echo") [SingleQuote ["$hi"]])
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
+-- Left " -a awefew wefjkl"
 
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
 {- Script parser -}
-parseShellScript :: String -> IO (Either ParseResult Block)
+parseShellScript :: String -> IO (Either String Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
 word2 :: Parser String
@@ -470,7 +442,7 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
 -- >>> parse newlineP "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
--- Left "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- Variable not in scope: newlineP :: Parser a
 
 -- How it looks : "if [y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
 
@@ -478,7 +450,7 @@ word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 -- Right (Val (IntVal 1))
 
 -- >>> parse untilNewline "\nif [[ $x -ew \\\"hello\\\" ]]\n"
--- Right "if [[ $x -ew \\\"hello\\\" ]]"
+-- Right ""
 
 -- >>> parse expP "$y < 1"
 -- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))

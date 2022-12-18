@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use lambda-case" #-}
 {-# HLINT ignore "Use $>" #-}
@@ -16,15 +16,13 @@ import Data.Char
     isSpace,
     isUpper,
   )
-import Data.Foldable ( Foldable(foldr), asum )
+import Data.Foldable (Foldable (foldr), asum)
 import Data.Map hiding (filter)
 import ShellSyntax
-import Test.HUnit
-import Prelude hiding (filter)
 import System.IO qualified as IO
 import System.IO.Error qualified as IO
-
--- Untyped shell
+import Test.HUnit
+import Prelude hiding (filter)
 
 -- | A parser is a function that takes a string and returns untyped shell
 newtype Parser a = P {doParse :: String -> Either String (a, String)}
@@ -49,7 +47,6 @@ instance Alternative Parser where
   empty :: Parser a
   empty = P $ const $ Left "error"
 
-
   (<|>) :: Parser a -> Parser a -> Parser a
   p1 <|> p2 = P $ \s -> doParse p1 s `firstRight` doParse p2 s
 
@@ -57,9 +54,8 @@ instance Alternative Parser where
 -- successful result
 firstRight :: Either String a -> Either String a -> Either String a
 firstRight (Right str) _ = Right str
-firstRight _  (Right str) = Right str
-firstRight (Left err) _  = Left err
-
+firstRight _ (Right str) = Right str
+firstRight (Left err) _ = Left err
 
 newtype History = History (Map Var BashCommand)
 
@@ -67,13 +63,11 @@ newtype History = History (Map Var BashCommand)
 filter :: (a -> Bool) -> Parser a -> Parser a
 filter f p = P $ \s -> do
   (c, cs) <- doParse p s
-  if f c then return (c, cs) else
-    do 
+  if f c
+    then return (c, cs)
+    else do
       sn <- parse untilNewline cs
       Left ("[ParseError] Please check line:   " ++ sn ++ "   ")
-
-
-type ParseResult = String
 
 -- | Return the next character from the input
 get :: Parser Char
@@ -81,10 +75,8 @@ get = P $ \s -> case s of
   (c : cs) -> Right (c, cs)
   [] -> Left "[ParseError] No more characters to parse!"
 
--- | Use a parser for a particular string. Note that this parser
--- combinator library doesn't support descriptive parse errors, but we
--- give it a type similar to other Parsing libraries.
-parse :: Parser a -> String -> Either ParseResult a
+-- | Use a parser for a particular string.
+parse :: Parser a -> String -> Either String a
 parse parser str =
   case doParse parser str of
     Left err -> Left err
@@ -104,6 +96,7 @@ digit = satisfy isDigit
 upper = satisfy isUpper
 lower = satisfy isLower
 space = satisfy isSpace
+
 newline = satisfy (== '\n')
 
 -- | Parses and returns the specified character
@@ -198,7 +191,6 @@ try1 filename = do
 -- >>> try1 "test/conditional.txt"
 -- "x=1\nif (( $z -eq \"hii\" ))\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 
-
 {- File parsers -}
 
 parseFromFile :: Parser a -> String -> IO (Either String a)
@@ -212,7 +204,3 @@ parseFromFile parser filename = do
     ( \e ->
         pure $ Left $ "Error:" ++ show e
     )
-
-
-
-

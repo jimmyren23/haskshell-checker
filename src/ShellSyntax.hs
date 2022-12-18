@@ -17,7 +17,7 @@ newtype Command = ExecName String
   deriving (Eq, Show)
 
 -- | Representation of arguments
-data Arg 
+data Arg
   = SingleQuote [Token] -- argument surrounded by single quotes
   | DoubleQuote [Token] -- argument surrounded by double quotes
   | Arg String -- "basic" argument : consecutive characters excluding space and quotes
@@ -38,7 +38,7 @@ data IfExpression
   deriving (Eq, Show)
 
 -- | List of binary operators permitted for bash conditional expressions
--- | Note: This list may not be comprehensive of all permitted binary operators. 
+-- | Note: This list may not be comprehensive of all permitted binary operators.
 -- | Referenced : https://linuxhint.com/bash_operator_examples/#o73
 data IfBop
   = PlusIf -- `+`  :: Int -> Int -> Int
@@ -49,7 +49,7 @@ data IfBop
   | Nt -- -nt file operator checking if a file is newer than the other
   | Ot -- -ot file operator checking if a file is older than the other
   | Ef -- -ef checking if the two hard links are pointing the same file or not
-  | EqIf -- `==` 
+  | EqIf -- `==`
   | EqNIf -- -eq numerical operator
   | EqS -- = `=` string operaor
   | GtIf -- `>`  :: a -> a -> Bool
@@ -69,9 +69,9 @@ data IfBop
 
 {- Assignment syntax -}
 
--- | Commands that could be intepreted as assignments 
-data PossibleAssign 
-  = PossibleAssignWS Var String Equal String Expression -- errors from extra spaces surrounding Equal("=") sign 
+-- | Commands that could be intepreted as assignments
+data PossibleAssign
+  = PossibleAssignWS Var String Equal String Expression -- errors from extra spaces surrounding Equal("=") sign
   | PossibleAssignDS Var Equal Expression -- error from prefixing variable name with "$"
   deriving (Eq, Show)
 
@@ -104,7 +104,7 @@ data Bop
 newtype Var = V String
   deriving (Eq, Ord, Show)
 
--- | Representation of different types of values 
+-- | Representation of different types of values
 data Value
   = IntVal Int -- 1
   | BoolVal Bool -- false, true
@@ -159,7 +159,7 @@ data Uop
 data Misc
   = Tilde -- ~
   | Esc -- \'
-   deriving (Eq, Show, Enum, Bounded)
+  deriving (Eq, Show, Enum, Bounded)
 
 -- | Numerical operators for conditional expressions
 numOps :: [IfBop]
@@ -167,3 +167,7 @@ numOps = [GtNIf, LtNIf, EqNIf, GeNIf, LtNIf, LeNIf, NeN]
 
 arithmeticOps :: [IfBop]
 arithmeticOps = [PlusIf, MinusIf, TimesIf, DivideIf, ModuloIf]
+
+-- | Data types to represent the different types of tokens in a printf format
+data PrintfToken = Token String | FormatSpec
+  deriving (Show, Eq)

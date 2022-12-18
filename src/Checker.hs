@@ -6,9 +6,16 @@ import Parsing
 import PrettyPrint (pretty)
 import ShellParsing qualified as S
 import ShellSyntax
+import Test.HUnit.Lang (Result (Error))
+
+-- Datatype to differentiate between messages
+data Message = WarningMessage String | ErrorMessage String
+  deriving (Show, Eq)
+
+data CommandCheck = CommandCheck (BashCommand -> Either Message BashCommand) | CommandCheckWithHistory (BashCommand -> Map Var BashCommand -> Either Message BashCommand) | CommandCheckWithHistoryAndVarFrequency (BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message BashCommand)
 
 -- | Finds the first result with error
-eitherOp :: Either String a -> Either String a -> Either String a
+eitherOp :: Either Message a -> Either Message a -> Either Message a
 eitherOp (Left err1) _ = Left err1
 eitherOp _ (Left err2) = Left err2
 eitherOp (Right cmd) _ = Right cmd
@@ -16,19 +23,19 @@ eitherOp (Right cmd) _ = Right cmd
 {- Quoting -}
 
 -- | Checks if a variable is quoted
-checkUnquotedVar :: Arg -> Map Var BashCommand -> Either String Arg
+checkUnquotedVar :: Arg -> Map Var BashCommand -> Either Message Arg
 checkUnquotedVar (Arg s) history = case parse S.argUnquotedVar s of
   Left str -> Right (Arg s)
   Right var ->
     if Map.member (V s) history
-      then Left ("Warning: Variable " ++ s ++ " that was previously used is not quoted.")
+      then Left (WarningMessage ("Warning: Variable " ++ s ++ " that was previously used is not quoted."))
       else Right (Arg s)
 checkUnquotedVar arg _ = Right arg
 
 -- | Checks if tilde is used in quotes
-checkQuotedTildeExpansionTokens :: Token -> Either String [Token]
+checkQuotedTildeExpansionTokens :: Token -> Either Message [Token]
 checkQuotedTildeExpansionTokens token =
-  if token == "<tilde>" then Left "Tilde expansion can't be used in strings" else Right [token]
+  if token == "<tilde>" then Left (WarningMessage "Tilde expansion can't be used in strings") else Right [token]
 
 -- | Checks if token could be a variable, considering if its in its history
 possVariableRefToken :: Token -> Map Var BashCommand -> Bool
@@ -54,11 +61,11 @@ checkSingleQuoteApostrophe val _ = Right val
 
 {- Conditionals -}
 
-checkConstantTestExpressions :: IfExpression -> Either String IfExpression
+checkConstantTestExpressions :: IfExpression -> Either Message IfExpression
 checkConstantTestExpressions exp =
   case exp of
-    IfOp2 (IfVal _) op (IfVal _) -> Left ("Warning: The expression `" ++ pretty exp ++ "` is constant")
-    IfOp3 (IfVal _) op (IfVal _) -> Left ("Warning: The expression `" ++ pretty exp ++ "` is constant")
+    IfOp2 (IfVal _) op (IfVal _) -> Left (WarningMessage $ "The expression `" ++ pretty exp ++ "` is constant")
+    IfOp3 (IfVal _) op (IfVal _) -> Left (WarningMessage $ "The expression `" ++ pretty exp ++ "` is constant")
     _ -> Right exp
 
 -- | Checks if equal-to is missing spaces around itself
@@ -67,10 +74,10 @@ checkMissingSpaces exp = undefined
 
 
 -- | Checks if Expression to see if conditional is implicitly always true through mislabeled expression
-checkLiteralVacuousTrue :: IfExpression -> Either String IfExpression
+checkLiteralVacuousTrue :: IfExpression -> Either Message IfExpression
 checkLiteralVacuousTrue exp =
   case exp of
-    IfOp1 op (IfVal (StringVal _)) -> if op `elem` [LengthZero, LengthNonZero] then Left ("Error: Argument to " ++ pretty op ++ " is always true.") else Right exp
+    IfOp1 op (IfVal (StringVal _)) -> if op `elem` [LengthZero, LengthNonZero] then Left (ErrorMessage $ "Argument to " ++ pretty op ++ " is always true.") else Right exp
     _ -> Right exp
 
 -- | Checks if Quoted regex in =~
@@ -79,18 +86,18 @@ checkQuotedRegex = undefined
 
 -- | Checks if unsupported operators are used
 -- TODO: Define a list of supported operators in ShellSyntax.hs
-checkUnsupportedOperators :: IfExpression -> Either String IfExpression
+checkUnsupportedOperators :: IfExpression -> Either Message IfExpression
 checkUnsupportedOperators exp =
   case exp of
-    IfOp2 _  Err _ -> Left ("Error: operator in `" ++ pretty exp ++ "` is not supported.")
-    IfOp3 _  Err _ -> Left ("Error: operator in `" ++ pretty exp ++ "` is not supported.")
+    IfOp2 _  Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
+    IfOp3 _  Err _ -> Left (ErrorMessage $ "Error: operator in `" ++ pretty exp ++ "` is not supported.")
     _ -> Right exp
 
 -- | Checks if test operators are used in ((..))
-checkTestOperators :: IfExpression -> Either String IfExpression
+checkTestOperators :: IfExpression -> Either Message IfExpression
 checkTestOperators exp =
   case exp of
-    IfOp3 _ op _ -> if op `notElem` arithmeticOps then Left ("Test operators like " ++ pretty op ++ " can't be used in arithmetic contexts.") else Right exp
+    IfOp3 _ op _ -> if op `notElem` arithmeticOps then Left (WarningMessage $ "Test operators like " ++ pretty op ++ " can't be used in arithmetic contexts.") else Right exp
     _ -> Right exp
 
 -- | Checks if piping and backgrounding are part of condition
@@ -247,17 +254,17 @@ checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history = case mapM (`a
   Right args' -> Right (ExecCommand cmd args')
 checkUnusedVar cmd _ = Right cmd
 
-checkVarInSingleQuotes :: Token -> Either String [Token]
+checkVarInSingleQuotes :: Token -> Either Message [Token]
 checkVarInSingleQuotes t =
   case parse S.variableRef t of
     Left error -> Right [t]
-    Right _ -> Left "Variables cannot be used inside single quotes."
+    Right _ -> Left (WarningMessage "Variables cannot be used inside single quotes.")
 
-checkEscapeInSingleQuotes :: Token -> Either String [Token]
+checkEscapeInSingleQuotes :: Token -> Either Message [Token]
 checkEscapeInSingleQuotes t =
-  if t == "<escape>" then Left "Escape cannot be used in single quotes" else Right [t]
+  if t == "<escape>" then Left (ErrorMessage "Escape cannot be used in single quotes") else Right [t]
 
-checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either String [Token]
+checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either Message [Token]
 checkArgSingleQuotes (t : tokens) history =
   let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t
    in case res of
@@ -267,27 +274,26 @@ checkArgSingleQuotes (t : tokens) history =
           return (tt ++ tokenss)
 checkArgSingleQuotes [] _ = Right []
 
-checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
+checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either Message [Token]
 checkArgDoubleQuotes tokens@(t : ts) history cmd =
-   case parse S.variableRef t of
-          Left error -> Right tokens
-          Right var ->
-            let V possVar = var
-            in case Map.lookup var history of
-                  Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-                  Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
-                  Just _ ->
-                     do
-                      tokenss <- checkArgDoubleQuotes ts history cmd
-                      return (t : tokenss)
-checkArgDoubleQuotes [] _ _  = Right []
-
+  case parse S.variableRef t of
+    Left error -> Right tokens
+    Right var ->
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
+            Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
+            Just _ ->
+              do
+                tokenss <- checkArgDoubleQuotes ts history cmd
+                return (t : tokenss)
+checkArgDoubleQuotes [] _ _ = Right []
 
 -- | How to print original command for possible assigns?
 -- | 1. Store in history map as a string in its original form
 -- | 2. Different types of possible assign
 -- | 3. Store = as part of var string
-checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either String [Arg]
+checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
 checkArg args@(x : xs) history cmd =
   case x of
     Arg a ->
@@ -295,9 +301,9 @@ checkArg args@(x : xs) history cmd =
         Left error -> Right args
         Right var ->
           let V possVar = var
-          in case Map.lookup var history of
-                Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-                Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
+           in case Map.lookup var history of
+                Nothing -> Left (ErrorMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
+                Just (PossibleAssign pa) -> Left (ErrorMessage ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
                 Just _ -> do
                   args <- checkArg xs history cmd
                   return (x : args)
@@ -311,21 +317,21 @@ checkArg args@(x : xs) history cmd =
       return (x : rArgs)
 checkArg [] _ _ = Right []
 
-checkExecCommandArgs :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkExecCommandArgs :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   args <- checkArg (x : xs) history command
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
-checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either String IfExpression
+checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either Message IfExpression
 checkVarInExp exp history fullExp =
   case exp of
     IfVar var ->
-      let V possVar = var in
-      case Map.lookup var history of
-        Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-        Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
-        Just _ -> Right fullExp
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
+            Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp))
+            Just _ -> Right fullExp
     IfOp1 _ exp -> checkVarInExp exp history fullExp
     IfOp2 exp1 _ exp2 -> do
       checkVarInExp exp1 history fullExp
@@ -335,23 +341,23 @@ checkVarInExp exp history fullExp =
       checkVarInExp exp2 history fullExp
     _ -> Right fullExp
 
-checkNumericalCompStrInExp :: IfExpression -> Either String IfExpression
+checkNumericalCompStrInExp :: IfExpression -> Either Message IfExpression
 checkNumericalCompStrInExp exp =
   case exp of
-    IfOp2 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    IfOp2 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    IfOp3 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
-    IfOp3 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp2 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp2 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp3 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp3 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
     _ -> Right exp
 
-checkAndInExp :: IfExpression -> Either String IfExpression
+checkAndInExp :: IfExpression -> Either Message IfExpression
 checkAndInExp exp =
   case exp of
-    IfOp2 _ AndIf _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
-    IfOp3 _ AndIf _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
+    IfOp2 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
+    IfOp3 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
     _ -> Right exp
 
-checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
   do
     checkTestOperators exp `eitherOp` checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp `eitherOp` checkConstantTestExpressions exp `eitherOp` checkLiteralVacuousTrue exp `eitherOp` checkUnsupportedOperators exp
@@ -413,7 +419,7 @@ checkVarInPrintfArgs arg history = case arg of
 -- Left "Error: Variables are not allowed in printf arguments."
 
 -- | Checks if vaiables are used in printf
-checkNoVariablesInPrintf :: BashCommand -> Map Var BashCommand -> Either String BashCommand
+checkNoVariablesInPrintf :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
   if cmdName == "printf"
     then
