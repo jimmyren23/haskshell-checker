@@ -486,8 +486,29 @@ bashCheckers =
     checkNoVariablesInPrintf
   ]
 
+ifAllChecker :: IfExpression -> Map Var BashCommand -> [IfExpression -> Either Message IfExpression] -> [Message]
+ifAllChecker ifexpr history = Prelude.foldr (\x acc -> acc ++ ifChecker ifexpr x) []
+  where
+    ifChecker ifexpr checker =
+      case checker ifexpr of
+        Left z -> [z]
+        Right _ -> []
+
+tokenAllCheckers :: [Token] -> Map Var BashCommand -> [Token -> Either Message Token] -> [Message]
+tokenAllCheckers tokens history = Prelude.foldr (\x acc -> acc ++ tokenChecker tokens x) []
+  where
+    tokenChecker tokens checker =
+      Prelude.foldr
+        ( \x acc ->
+            case x of
+              Left z -> z : acc
+              Right _ -> acc
+        )
+        []
+        (fmap checker tokens)
+
 argAllCheckers :: [Arg] -> Map Var BashCommand -> [Arg -> Map Var BashCommand -> Either Message Arg] -> [Message]
-argAllCheckers args history = Prelude.foldr (\x acc -> acc ++ argsChecker args x Map.empty) []
+argAllCheckers args history = Prelude.foldr (\x acc -> acc ++ argsChecker args x history) []
   where
     argsChecker args checker history =
       Prelude.foldr
@@ -501,10 +522,60 @@ argAllCheckers args history = Prelude.foldr (\x acc -> acc ++ argsChecker args x
       where
         checkresult = flip checker history
 
+bashAllChecker :: BashCommand -> Map Var BashCommand -> [BashCommand -> Map Var BashCommand -> Either Message BashCommand] -> [Message]
+bashAllChecker cmd history = Prelude.foldr (\x acc -> acc ++ bashChecker cmd x) []
+  where
+    bashChecker cmd checker =
+      case checker cmd history of
+        Left z -> [z]
+        Right _ -> []
+
+blockChecker :: Block -> Map Var BashCommand -> [BashCommand -> Map Var BashCommand -> Either Message BashCommand] -> [Message]
+blockChecker (Block cmds) history checkers = Prelude.foldr (\x acc -> acc ++ bashChecker x) [] cmds
+  where
+    bashChecker cmd = bashAllChecker cmd history checkers
+
+-- | Looks for the first error message
+findErrorMessage :: [Message] -> Message
+findErrorMessage [] = None
+findErrorMessage (x : xs) = case x of
+  ErrorMessage _ -> x
+  _ -> findErrorMessage xs
+
+-- | allWarning Messages
+allWarningMessages :: [Message] -> [Message]
+allWarningMessages [] = []
+allWarningMessages (x : xs) = case x of
+  WarningMessage _ -> x : allWarningMessages xs
+  _ -> allWarningMessages xs
+
 -- Looks at different structures of bash command -> attempts to run checkers on it
 mainChecker :: BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message (BashCommand, [Message])
-mainChecker (ExecCommand cmd args) history varFreq = undefined
-mainChecker (Conditional ifExpr block1 block2) history varFreq = undefined
-mainChecker (PossibleConditional possIfExpr block1 block2) history varFreq = undefined
-mainChecker (Assign var expr) history varFreq = undefined
-mainChecker (PossibleAssign possAssign) history varFreq = undefined
+mainChecker (ExecCommand cmd args) history varFreq = do
+  let argMessages = argAllCheckers args history argCheckers
+  let bashMessages = bashAllChecker (ExecCommand cmd args) history bashCheckers
+  let allMessages = argMessages ++ bashMessages
+  let errorMessage = findErrorMessage allMessages
+  case errorMessage of
+    None -> Right (ExecCommand cmd args, allWarningMessages allMessages)
+    _ -> Left errorMessage
+mainChecker (Conditional ifExpr block1 block2) history varFreq =
+  let ifMessages = ifAllChecker ifExpr history ifCheckers
+      block1Messages = blockChecker block1 history bashCheckers
+      block2Messages = blockChecker block2 history bashCheckers
+      allMessages =
+        ifMessages
+          ++ block1Messages
+          ++ block2Messages
+      errorMessage = findErrorMessage allMessages
+   in case errorMessage of
+        None -> Right (Conditional ifExpr block1 block2, allWarningMessages allMessages)
+        _ -> Left errorMessage
+mainChecker (Assign var expr) history varFreq =
+  let bashMessages = bashAllChecker (Assign var expr) history bashCheckers
+      allMessages = bashMessages
+      errorMessage = findErrorMessage allMessages
+   in case errorMessage of
+        None -> Right (Assign var expr, allWarningMessages allMessages)
+        _ -> Left errorMessage
+mainChecker _ _ _ = Left (ErrorMessage "Error: This should not happen.")
