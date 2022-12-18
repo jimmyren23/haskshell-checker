@@ -27,19 +27,26 @@ type Token = String -- Type for each word in quotes
 
 {- Conditional syntax -}
 
--- | Representation of "if [...]" or "if [[...]]" expression
+-- | Representation of "if [...]" or "if [[...]]" or if ((...)) expression (see IfOp3)
+-- | By default, assume conditionals to be of the form "if [...]" or "if [[...]]"
 data IfExpression
   = IfVar Var -- global variables
   | IfVal Value -- literal values
-  | IfOp1 Uop IfExpression -- unary operators
+  | IfOp1 IfUop IfExpression -- unary operators
   | IfOp2 IfExpression IfBop IfExpression -- binary operators
+  | IfOp3 IfExpression IfBop IfExpression -- arithmetic expression enclosed by ((...))
   deriving (Eq, Show)
 
 -- | List of binary operators permitted for bash conditional expressions
 -- | Note: This list may not be comprehensive of all permitted binary operators. 
 -- | Referenced : https://linuxhint.com/bash_operator_examples/#o73
 data IfBop
-  = Nt -- -nt file operator checking if a file is newer than the other
+  = PlusIf -- `+`  :: Int -> Int -> Int
+  | MinusIf -- `-`  :: Int -> Int -> Int
+  | TimesIf -- `*`  :: Int -> Int -> Int
+  | DivideIf -- `//` :: Int -> Int -> Int   -- floor division
+  | ModuloIf -- `%`  :: Int -> Int -> Int
+  | Nt -- -nt file operator checking if a file is newer than the other
   | Ot -- -ot file operator checking if a file is older than the other
   | Ef -- -ef checking if the two hard links are pointing the same file or not
   | EqIf -- `==` 
@@ -102,6 +109,7 @@ data Value
   = IntVal Int -- 1
   | BoolVal Bool -- false, true
   | StringVal String -- "abd"
+  | Word String
   | Misc
   deriving (Eq, Show, Ord)
 
@@ -114,6 +122,34 @@ instance Semigroup Block where
 
 instance Monoid Block where
   mempty = Block []
+
+data IfUop
+  = NotIf -- `!` :: a -> Bool
+  | AndU -- `-a` ::
+  | BlockSpecial -- `-b` :: a -> Bool
+  | CharSpecial -- `-c` :: a -> Bool
+  | FolderExists -- `-d` :: a -> Bool
+  | FileOrFolderExists -- `-e` :: a -> Bool
+  | FileExists -- `-f` :: a -> Bool
+  | GroupId -- `-g` :: a -> Bool
+  | Symlink -- `-h` or `-L` :: a -> Bol
+  | StickyBit -- `-k` :: a -> Bool
+  | Pipe -- `-p` :: a -> Bool
+  | ReadPermission -- `-r` :: a -> Bool
+  | FileSize -- `-s` :: a -> Bool
+  | Socket -- `-S` :: a -> Bool
+  | Terminal -- `-t` :: a -> Bool
+  | UserId -- `-u` :: a -> Bool
+  | WritePermission -- `-w` :: a -> Bool
+  | ExecPermission -- `-e` :: a -> Bool
+  | Owner -- `-O` :: a -> Bool
+  | GroupIdUser -- `-G` :: a -> Bool
+  | Modified -- `-N` :: a -> Bool
+  | LengthZero -- `-z` :: a -> Bool
+  | LengthNonZero -- `-n` :: a -> Bool
+  | Or -- `-o` :: a -> Bool
+  | ErrU
+  deriving (Eq, Show, Enum, Bounded)
 
 data Uop
   = Neg -- `-` :: Int -> Int
@@ -128,3 +164,6 @@ data Misc
 -- | Numerical operators for conditional expressions
 numOps :: [IfBop]
 numOps = [GtNIf, LtNIf, EqNIf, GeNIf, LtNIf, LeNIf, NeN]
+
+arithmeticOps :: [IfBop]
+arithmeticOps = [PlusIf, MinusIf, TimesIf, DivideIf, ModuloIf]

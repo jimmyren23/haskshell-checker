@@ -54,13 +54,24 @@ checkSingleQuoteApostrophe val _ = Right val
 
 {- Conditionals -}
 
+checkConstantTestExpressions :: IfExpression -> Either String IfExpression
+checkConstantTestExpressions exp =
+  case exp of
+    IfOp2 (IfVal _) op (IfVal _) -> Left ("Warning: The expression `" ++ pretty exp ++ "` is constant")
+    IfOp3 (IfVal _) op (IfVal _) -> Left ("Warning: The expression `" ++ pretty exp ++ "` is constant")
+    _ -> Right exp
+
 -- | Checks if equal-to is missing spaces around itself
-checkMissingSpaces :: String -> Either String String
-checkMissingSpaces = undefined
+checkMissingSpaces :: IfExpression -> Either String IfExpression
+checkMissingSpaces exp = undefined
+
 
 -- | Checks if Expression to see if conditional is implicitly always true through mislabeled expression
-checkLiteralVacuousTrue :: Expression -> Either String Expression
-checkLiteralVacuousTrue = undefined
+checkLiteralVacuousTrue :: IfExpression -> Either String IfExpression
+checkLiteralVacuousTrue exp =
+  case exp of
+    IfOp1 op (IfVal (StringVal _)) -> if op `elem` [LengthZero, LengthNonZero] then Left ("Error: Argument to " ++ pretty op ++ " is always true.") else Right exp
+    _ -> Right exp
 
 -- | Checks if Quoted regex in =~
 checkQuotedRegex :: Expression -> Either String Value
@@ -68,12 +79,19 @@ checkQuotedRegex = undefined
 
 -- | Checks if unsupported operators are used
 -- TODO: Define a list of supported operators in ShellSyntax.hs
-checkUnsupportedOperators :: Expression -> Either String Expression
-checkUnsupportedOperators = undefined
+checkUnsupportedOperators :: IfExpression -> Either String IfExpression
+checkUnsupportedOperators exp =
+  case exp of
+    IfOp2 _  Err _ -> Left ("Error: operator in `" ++ pretty exp ++ "` is not supported.")
+    IfOp3 _  Err _ -> Left ("Error: operator in `" ++ pretty exp ++ "` is not supported.")
+    _ -> Right exp
 
 -- | Checks if test operators are used in ((..))
-checkTestOperators :: Expression -> Either String Expression
-checkTestOperators = undefined
+checkTestOperators :: IfExpression -> Either String IfExpression
+checkTestOperators exp =
+  case exp of
+    IfOp3 _ op _ -> if op `notElem` arithmeticOps then Left ("Test operators like " ++ pretty op ++ " can't be used in arithmetic contexts.") else Right exp
+    _ -> Right exp
 
 -- | Checks if piping and backgrounding are part of condition
 checkBackgroundingAndPiping :: Expression -> Either String Expression
@@ -309,7 +327,12 @@ checkVarInExp exp history fullExp =
         Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
         Just _ -> Right fullExp
     IfOp1 _ exp -> checkVarInExp exp history fullExp
-    IfOp2 exp _ _ -> checkVarInExp exp history fullExp
+    IfOp2 exp1 _ exp2 -> do
+      checkVarInExp exp1 history fullExp
+      checkVarInExp exp2 history fullExp
+    IfOp3 exp1 _ exp2 -> do
+      checkVarInExp exp1 history fullExp
+      checkVarInExp exp2 history fullExp
     _ -> Right fullExp
 
 checkNumericalCompStrInExp :: IfExpression -> Either String IfExpression
@@ -317,18 +340,21 @@ checkNumericalCompStrInExp exp =
   case exp of
     IfOp2 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
     IfOp2 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp3 (IfVal (StringVal _)) op _ -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
+    IfOp3 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (pretty op ++ pretty " is for numerical comparisons.") else Right exp
     _ -> Right exp
 
 checkAndInExp :: IfExpression -> Either String IfExpression
 checkAndInExp exp =
   case exp of
     IfOp2 _ AndIf _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
+    IfOp3 _ AndIf _ -> Left (pretty And ++ " cannot be used inside [...] or [[...]].")
     _ -> Right exp
 
 checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either String BashCommand
 checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
   do
-    checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp
+    checkTestOperators exp `eitherOp` checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp `eitherOp` checkConstantTestExpressions exp `eitherOp` checkLiteralVacuousTrue exp `eitherOp` checkUnsupportedOperators exp
     return cmd
 checkConditionalSt cmd _ = Right cmd
 

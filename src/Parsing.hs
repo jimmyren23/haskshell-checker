@@ -166,6 +166,11 @@ constP s rtrnVal = wsP (string s) *> pure rtrnVal
 errP :: a -> Parser a
 errP rtrnVal = wsP (many (satisfy (/= ' '))) *> pure rtrnVal
 
+-- many (satisfy (/= ' ')) <* string " " <* many get *> pure rtrnVal
+
+-- >>> parse (errP ErrU) "-as"
+-- Right ErrU
+
 eof :: Parser ()
 eof = P $ \s -> case s of
   [] -> Right ((), [])
@@ -191,7 +196,7 @@ try1 filename = do
 -- Left "err"
 
 -- >>> try1 "test/conditional.txt"
--- "y=1\nx=1\nif [[ $y -ew \"hello\" ]]\nthen\n  echo \"$x\"\nelse\n  x=3\nfi\n"
+-- "x=1\nif (( $z -eq \"hii\" ))\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 
 
 {- File parsers -}

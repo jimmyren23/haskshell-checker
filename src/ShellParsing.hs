@@ -123,7 +123,8 @@ bopP =
 ifBopP :: Parser IfBop
 ifBopP =
   choice
-    [ constP "-nt" Nt,
+    [ 
+      constP "-nt" Nt,
       constP "-ot" Ot,
       constP "-ef" Ef,
       constP "-ge" GeNIf,
@@ -141,6 +142,11 @@ ifBopP =
       constP "&&" AndIf,
       constP "=~" Reg,
       constP "=" EqS,
+      constP "+" PlusIf,
+      constP " - " MinusIf,
+      constP "*" TimesIf,
+      constP "//" DivideIf,
+      constP "%" ModuloIf,
       errP Err
     ]
 
@@ -156,11 +162,43 @@ level Minus = 5
 level Concat = 4
 level _ = 3 -- comparison operators
 
--- | Parses unary operators
 uopP :: Parser Uop
-uopP = constP "-" Neg <|> constP "not" Not
+uopP = constP "-" Neg
+  <|> constP "not" Not
 
-intValP :: Parser Value
+-- | Parses unary operators
+ifUopP :: Parser IfUop
+ifUopP = 
+  choice [
+    constP "!" NotIf,
+    constP "-a" AndU,
+    constP "-b" BlockSpecial,
+    constP "-c" CharSpecial,
+    constP "-d" FolderExists,
+    constP "-e" FileOrFolderExists,
+    constP "-f" FileExists,
+    constP "-g" GroupId,
+    constP "-h" Symlink,
+    constP "-k" StickyBit,
+    constP "-p" Pipe,
+    constP "-r" ReadPermission,
+    constP "-s" FileSize,
+    constP "-S" Socket,
+    constP "-t" Terminal,
+    constP "-u" UserId,
+    constP "-w" WritePermission,
+    constP "-e" ExecPermission,
+    constP "-O" Owner,
+    constP "-G" GroupIdUser,
+    constP "-N" Modified,
+    constP "-z" LengthZero,
+    constP "-n" LengthNonZero,
+    constP "-o" Or
+  ]
+
+-- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]"))) "if [ -as 2 ]"
+-- Right (IfOp1 AndU (IfOp1 ErrU (IfVal (IntVal 2))))
+
 intValP = IntVal <$> wsP int
 
 boolValP :: Parser Value
@@ -212,8 +250,19 @@ sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char
 -- >>> parse dqStringValErrP "\"~\""
 -- Right ["<tilde>"]
 
+-- >>> parse valueP 
+-- Left "  "
+
+
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
+
+wordP :: Parser Value
+wordP = Word <$> wsP (many (satisfy (/= ' ')) <* string " ")
+
+-- >>> parse conditionalP "if [[ hes -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"$y\"\nfi\n"
+-- Left "[ParseError] Please check line:   $y\"   "
+
 
 -- | parses different values
 valueP :: Parser Value
@@ -234,11 +283,15 @@ expP = compP
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
   where
-    bopexpP = baseP `chainl1` (flip IfOp2 <$> ifBopP)
-    -- uopexpP =
-    --   baseP
-    --     <|> Op1 <$> uopP <*> uopexpP
+    bopexpP = uopexpP `chainl1` (flip IfOp2 <$> ifBopP)
+    uopexpP =
+      baseP
+        <|> IfOp1 <$> ifUopP <*> uopexpP
     baseP = IfVar <$> variableRef <|> IfVal <$> valueP
+
+-- >>> parse (wsP uopP <* IfVal <$> valueP) "-n \'hi\'"
+-- Variable not in scope: uopexpP :: Parser b0
+  
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
@@ -280,6 +333,8 @@ dsAssignP = PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' 
 -- | parses anything thats not an operator, quote, or space
 notQuoteOrSpaceP :: Parser Char
 notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c))
+
+notQuoteOrSpaceOrNewLineP = satisfy (\c -> not (isSpace c) && c /= '\n')
 
 -- parses a name from a string
 word :: Parser String
@@ -323,23 +378,31 @@ execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP) <* many (char 
 conditionalStrP :: Parser String
 conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
 
--- >>> parse conditionalStrP "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
--- Left "if [$y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
+-- >>> parse conditionalP "if [[ 'hi' -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
+-- Left "[ParseError] Please check line:   hi\"   "
+
+
+ifNonExp :: Parser IfExpression
+ifNonExp = IfVar <$> variableRef <|> IfVal <$> valueP
+
 
 -- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand
 conditionalP =
   -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
   Conditional
-    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")))
+    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) 
+      <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) 
+         <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
 -- >>> parse ((wsP (string "then") *> wsP blockP)) "\nthen\n  x=2"
 -- Left "No parses"
 
--- >>> parse (wsP (string "else") *> wsP blockP <* wsP (string "fi")) "else\n  x=3\nfi\n"
--- Right (Block [Assign (V "x") (Val (IntVal 3))])
+
+-- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) "if [ hi > 1 ]"
+-- parse error (possibly incorrect indentation or mismatched brackets)
 
 -- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
 
@@ -379,8 +442,8 @@ oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (s
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"
 
--- >>> parse bashCommandP "x=3"
--- Right (Assign (V "x") (Val (IntVal 3)))
+-- >>> parse bashCommandP "x=1\nif [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
+-- Left "if [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 
 -- >>> parse bashCommandP "x = 3"
 -- Right (PossibleAssign (V "x") (Val (IntVal 3)))

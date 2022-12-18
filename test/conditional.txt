@@ -1,8 +1,7 @@
-x=3
-if [[ $x -ef "hello" ]]
+x=1
+if [ $x -ew "hii" ]
 then
   echo "$y"
 else
-  x=3
+  echo "hi"
 fi
-y=2+4

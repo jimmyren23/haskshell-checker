@@ -20,8 +20,35 @@ oneLine :: PP a => a -> String
 oneLine = PP.renderStyle (PP.style {PP.mode = PP.OneLineMode}) . pp
 
 instance PP Uop where
-  pp Neg = PP.char '-'
   pp Not = PP.text "not"
+  pp Neg = PP.text "-"
+
+instance PP IfUop where
+  pp NotIf = PP.text "!"
+  pp AndU = PP.text "-a" 
+  pp BlockSpecial = PP.text "-b"
+  pp CharSpecial = PP.text "-c"
+  pp FolderExists = PP.text "-d"
+  pp FileOrFolderExists = PP.text "-e" 
+  pp FileExists = PP.text "-f"
+  pp GroupId = PP.text "-g"
+  pp Symlink = PP.text "-h"
+  pp StickyBit = PP.text "-k"
+  pp Pipe = PP.text "-p"
+  pp ReadPermission = PP.text "-r"
+  pp FileSize = PP.text "-s"
+  pp Socket = PP.text "-S" 
+  pp Terminal = PP.text "-t"
+  pp UserId = PP.text "-u"
+  pp WritePermission = PP.text "-w"
+  pp ExecPermission = PP.text "-e"
+  pp Owner = PP.text "-O"
+  pp GroupIdUser = PP.text "-G" 
+  pp Modified = PP.text "-N"
+  pp LengthZero = PP.text "-z" 
+  pp LengthNonZero = PP.text "-n"
+  pp Or = PP.text "-o" 
+  pp ErrU = PP.text "err"
 
 instance PP Bool where
   pp True = PP.text "true"
@@ -77,6 +104,11 @@ instance PP Bop where
 
 
 instance PP IfBop where
+  pp PlusIf = PP.char '+'
+  pp MinusIf = PP.char '-'
+  pp TimesIf = PP.char '*'
+  pp DivideIf = PP.text "//"
+  pp ModuloIf = PP.text "%"
   pp Nt = PP.text "-nt" -- -nt file operator checking if a file is newer than the other
   pp Ot = PP.text "-ot" -- -ot file operator checking if a file is older than the other
   pp Ef = PP.text "-ef" -- -ef checking if the two hard links are pointing the same file or not
