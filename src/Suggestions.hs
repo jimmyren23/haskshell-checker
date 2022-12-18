@@ -49,9 +49,15 @@ updateVarFrequency var = do
   let newVarFrequency = Map.insertWith (+) var 1 oldVarFrequency
   put myState {varFrequency = newVarFrequency}
 
+updateBlock :: MonadState MyState m => Block -> m ()
+updateBlock (Block (x : xs)) = do
+  updateState x
+  updateBlock (Block xs)
+updateBlock (Block []) = return ()
+
 -- | Action that updates the state
-updState :: MonadState MyState m => BashCommand -> m ()
-updState bc = case bc of
+updateState :: MonadState MyState m => BashCommand -> m ()
+updateState bc = case bc of
   PossibleAssign pa@(PossibleAssignWS var _ eq _ exp) -> do
     updateHistory var bc
     updateVarFrequency var
@@ -61,6 +67,14 @@ updState bc = case bc of
   Assign var ex -> do
     updateHistory var bc
     updateVarFrequency var
+  Conditional (IfVar var) block1 block2 -> do
+    updateBlock block1
+    updateBlock block2
+    updateVarFrequency var
+  PossibleConditional (Var v) block1 block2 -> do
+    updateBlock block1
+    updateBlock block2
+    updateVarFrequency v
   _ ->
     return ()
 
@@ -80,7 +94,7 @@ evalLine s = do
        in case res of
             Left err -> throwError err
             Right _ -> do
-              updState bc
+              updateState bc
               return bc
 
 evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
@@ -141,7 +155,7 @@ evalBashLine bc = do
        in case res of
             Left err -> throwError $ errorS err
             Right _ -> do
-              updState bc
+              updateState bc
               return bc
 
 evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m BashCommand
