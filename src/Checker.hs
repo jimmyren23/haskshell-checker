@@ -12,7 +12,19 @@ import Test.HUnit.Lang (Result (Error))
 data Message = WarningMessage String | ErrorMessage String
   deriving (Show, Eq)
 
-data CommandCheck = CommandCheck (BashCommand -> Either Message BashCommand) | CommandCheckWithHistory (BashCommand -> Map Var BashCommand -> Either Message BashCommand) | CommandCheckWithHistoryAndVarFrequency (BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message BashCommand)
+-- Defines a command check datatype
+type History = Map Var BashCommand
+
+type VarFrequency = Map Var Int
+
+data CommandCheck a = CommandCheck History VarFrequency (a -> Map Var BashCommand -> Map Var Int -> Either Message a)
+
+-- instance Alternative Parser where
+--   empty :: Parser a
+--   empty = P $ const $ Left "error"
+
+--   (<|>) :: Parser a -> Parser a -> Parser a
+--   p1 <|> p2 = P $ \s -> doParse p1 s `firstRight` doParse p2 s
 
 -- | Finds the first result with error
 eitherOp :: Either Message a -> Either Message a -> Either Message a
@@ -80,7 +92,7 @@ verifyRegStrings s exp =
   case parse S.regex s of
     Left _ -> Right exp
     Right _ -> Left (WarningMessage $ "Remove quotes in `" ++ pretty exp ++ "` to match as a regex instead of literally.")
-    
+
 -- | Checks if Quoted regex in =~
 checkQuotedRegex :: IfExpression -> Either Message IfExpression
 checkQuotedRegex exp =
@@ -93,8 +105,8 @@ checkQuotedRegex exp =
 checkUnsupportedOperators :: IfExpression -> Either Message IfExpression
 checkUnsupportedOperators exp =
   case exp of
-    IfOp2 _  Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
-    IfOp3 _  Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
+    IfOp2 _ Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
+    IfOp3 _ Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported.")
     _ -> Right exp
 
 -- | Checks if test operators are used in ((..))
@@ -367,7 +379,6 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   args <- checkArg (x : xs) history command
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
-
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"
