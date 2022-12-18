@@ -94,7 +94,7 @@ showSt f (v, myState) = f v ++ ", history: " ++ show (history myState) ++ ", var
 -- | Show the result of runExceptT, parameterized by a function to show the value
 showEx :: (a -> String) -> Either String a -> String
 showEx _ (Left m) = m
-showEx f (Right v) = "<PARSED OUTPUT>: " ++ f v
+showEx f (Right v) = "<SUCCESS> No issues detected ☺! \n\t<PARSED OUTPUT> " ++ f v
 
 -- >>> showEx show (Left "Error")
 -- "<Error>: Error"
