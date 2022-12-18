@@ -67,13 +67,13 @@ filter f p = P $ \s -> do
     then return (c, cs)
     else do
       sn <- parse untilNewline cs
-      Left ("[ParseError] Please check line:   " ++ sn ++ "   ")
+      Left ("[ParseError] Please check line:   " ++ sn ++ "   .")
 
 -- | Return the next character from the input
 get :: Parser Char
 get = P $ \s -> case s of
   (c : cs) -> Right (c, cs)
-  [] -> Left "[ParseError] No more characters to parse!"
+  [] -> Left "[ParseError] No more characters to parse."
 
 -- | Use a parser for a particular string.
 parse :: Parser a -> String -> Either String a

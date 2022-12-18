@@ -101,7 +101,7 @@ bopP =
 ifBopP :: Parser IfBop
 ifBopP =
   choice
-    [ 
+    [
       constP "-nt" Nt,
       constP "-ot" Ot,
       constP "-ef" Ef,
@@ -146,7 +146,7 @@ uopP = constP "-" Neg
 
 -- | Parses unary operators
 ifUopP :: Parser IfUop
-ifUopP = 
+ifUopP =
   choice [
     constP "!" NotIf,
     constP "-a" AndU,
@@ -271,7 +271,7 @@ ifExpP = bopexpP
 
 -- >>> parse (wsP uopP <* IfVal <$> valueP) "-n \'hi\'"
 -- Variable not in scope: uopexpP :: Parser b0
-  
+
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
@@ -317,6 +317,21 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 
 oldArithmeticExpansion :: Parser String
 oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
+
+regex :: Parser String
+regex =
+   (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
+   <|> (many (satisfy (/= '^')) *> string "^" <* some get)
+   <|> (some (satisfy (/= '|')) *> string "|" <* some get)
+   <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
+   <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
+   <|> (many (satisfy (/= '*')) *> string "*" <* some get)
+   <|> (some (satisfy (/= '*')) *> string "*" <* many get)
+   <|> (many (satisfy (/= '/')) *> string "/" <* some get)
+
+-- >>> parse regex "asdf(asdfad)asdf"
+-- Right "asdfad"
+
 
 -- >>> parse possibleAssignP "a =1"
 -- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
@@ -389,8 +404,8 @@ conditionalP :: Parser BashCommand
 conditionalP =
   -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
   Conditional
-    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) 
-      <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) 
+    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]"))
+      <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]"))
          <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))

@@ -23,7 +23,12 @@ data Arg
   | Arg String -- "basic" argument : consecutive characters excluding space and quotes
   deriving (Eq, Show)
 
-type Token = String -- Type for each word in quotes
+type Token = String
+  
+data Misc
+  = Tilde -- ~
+  | Esc -- \'
+  deriving (Eq, Show, Enum, Bounded)
 
 {- Conditional syntax -}
 
@@ -110,7 +115,6 @@ data Value
   | BoolVal Bool -- false, true
   | StringVal String -- "abd"
   | Word String
-  | Misc
   deriving (Eq, Show, Ord)
 
 -- | Representation for a list of all commands
@@ -156,10 +160,14 @@ data Uop
   | Not -- `not` :: a -> Bool
   deriving (Eq, Show, Enum, Bounded)
 
-data Misc
-  = Tilde -- ~
-  | Esc -- \'
-  deriving (Eq, Show, Enum, Bounded)
+-- | Data types to represent the different types of tokens in a printf format
+data PrintfToken = Token String | FormatSpec
+  deriving (Show, Eq)
+
+-- | Common operators used in regex
+-- | Referenced: https://support.workiva.com/hc/en-us/articles/4407304269204-Regular-expression-operators
+regOps :: [Char]
+regOps = ['^', '$', '.', '|', '(', '[', '{', '*', '+', '?', '/']
 
 -- | Numerical operators for conditional expressions
 numOps :: [IfBop]
@@ -167,7 +175,3 @@ numOps = [GtNIf, LtNIf, EqNIf, GeNIf, LtNIf, LeNIf, NeN]
 
 arithmeticOps :: [IfBop]
 arithmeticOps = [PlusIf, MinusIf, TimesIf, DivideIf, ModuloIf]
-
--- | Data types to represent the different types of tokens in a printf format
-data PrintfToken = Token String | FormatSpec
-  deriving (Show, Eq)

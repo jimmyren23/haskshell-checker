@@ -75,9 +75,18 @@ checkLiteralVacuousTrue exp =
     IfOp1 op (IfVal (StringVal _)) -> if op `elem` [LengthZero, LengthNonZero] then Left (ErrorMessage $ "Argument to " ++ pretty op ++ " is always true.") else Right exp
     _ -> Right exp
 
+verifyRegStrings :: String -> IfExpression -> Either Message IfExpression
+verifyRegStrings s exp =
+  case parse S.regex s of
+    Left _ -> Right exp
+    Right _ -> Left (WarningMessage $ "Remove quotes in `" ++ pretty exp ++ "` to match as a regex instead of literally.")
+    
 -- | Checks if Quoted regex in =~
-checkQuotedRegex :: Expression -> Either String Value
-checkQuotedRegex = undefined
+checkQuotedRegex :: IfExpression -> Either Message IfExpression
+checkQuotedRegex exp =
+  case exp of
+    IfOp2 expL op (IfVal (StringVal s)) -> if op == Reg then verifyRegStrings s exp else Right exp
+    _ -> Right exp
 
 -- | Checks if unsupported operators are used
 -- TODO: Define a list of supported operators in ShellSyntax.hs
@@ -136,7 +145,7 @@ checkAndInExp exp =
 checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
   do
-    checkTestOperators exp `eitherOp` checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp `eitherOp` checkConstantTestExpressions exp `eitherOp` checkLiteralVacuousTrue exp `eitherOp` checkUnsupportedOperators exp
+    checkTestOperators exp `eitherOp` checkVarInExp exp history exp `eitherOp` checkNumericalCompStrInExp exp `eitherOp` checkAndInExp exp `eitherOp` checkConstantTestExpressions exp `eitherOp` checkLiteralVacuousTrue exp `eitherOp` checkUnsupportedOperators exp `eitherOp` checkQuotedRegex exp
     return cmd
 checkConditionalSt cmd _ = Right cmd
 

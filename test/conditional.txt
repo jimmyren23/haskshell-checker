@@ -1,5 +1,5 @@
 x=1
-if [ $x > "hii" ]
+if [ $x =~ "hii+" ]
 then
   echo "$x"
 else
