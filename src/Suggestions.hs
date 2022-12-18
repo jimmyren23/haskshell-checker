@@ -83,27 +83,6 @@ updateState bc = case bc of
 errorS :: Show a => a -> String
 errorS = show
 
--- | Evaluates a single line
-evalLine :: (MonadError String m, MonadState MyState m) => String -> m BashCommand
-evalLine s = case parse S.bashCommandP s of
-  Left err -> throwError $ errorS err
-  Right bc -> do
-    myState <- State.get
-    case C.checkExecCommandArgs bc (history myState) of
-      Left err -> throwError err
-      Right _ -> do
-        updateState bc
-        return bc
-
--- | Evaluates all lines in a script
-evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
-evalAllLines [x] = do
-  evalLine x
-evalAllLines (x : xs) = do
-  evalLine x
-  evalAllLines xs
-evalAllLines [] = undefined
-
 -- | Shows the history and variable reference frequency
 showSt :: (a -> String) -> (a, MyState) -> String
 showSt f (v, myState) = f v ++ ", history: " ++ show (history myState) ++ ", varFrequency: " ++ show (varFrequency myState)
@@ -165,3 +144,24 @@ evalScript filename = do
   case res of
     Left err -> print (errorS err)
     Right (Block bcs) -> print (evalAll bcs)
+
+-- | Evaluates a single line
+-- evalLine :: (MonadError String m, MonadState MyState m) => String -> m BashCommand
+-- evalLine s = case parse S.bashCommandP s of
+--   Left err -> throwError $ errorS err
+--   Right bc -> do
+--     myState <- State.get
+--     case C.checkExecCommandArgs bc (history myState) of
+--       Left err -> throwError err
+--       Right _ -> do
+--         updateState bc
+--         return bc
+
+-- -- | Evaluates all lines in a script
+-- evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
+-- evalAllLines [x] = do
+--   evalLine x
+-- evalAllLines (x : xs) = do
+--   evalLine x
+--   evalAllLines xs
+-- evalAllLines [] = undefined
