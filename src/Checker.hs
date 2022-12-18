@@ -13,35 +13,11 @@ import Test.HUnit.Lang (Result (Error))
 data Message = WarningMessage String | ErrorMessage String
   deriving (Show, Eq)
 
--- Defines a command check datatype
+-- History is a map of variables to the command assigned to it
 type History = Map Var BashCommand
 
+-- VarFrequency is a map of variables to the number of times they have been used
 type VarFrequency = Map Var Int
-
-newtype CommandCheck a = CommandCheck {checkCommand :: a -> Map Var BashCommand -> Map Var Int -> Either Message a}
-
-instance Applicative CommandCheck where
-  pure :: a -> CommandCheck a
-  pure a = CommandCheck (\_ _ _ -> Right a)
-
-  (<*>) :: CommandCheck (a -> b) -> CommandCheck a -> CommandCheck b
-  CommandCheck f <*> CommandCheck g = CommandCheck $ \x env vars -> do
-    y <- f x env vars
-    z <- g x env vars
-    return (y z)
-instance Alternative CommandCheck where
-  empty :: CommandCheck a
-  empty = CommandCheck (\_ _ _ -> Left (WarningMessage "error"))
-
-  (<|>) :: CommandCheck a -> CommandCheck a -> CommandCheck a
-  p1 <|> p2 = CommandCheck (\a history freq -> checkCommand p1 a history freq `eitherOp` checkCommand p2 a history freq)
-
--- instance Alternative Parser where
---   empty :: Parser a
---   empty = P $ const $ Left "error"
-
---   (<|>) :: Parser a -> Parser a -> Parser a
---   p1 <|> p2 = P $ \s -> doParse p1 s `firstRight` doParse p2 s
 
 -- | Finds the first result with error
 eitherOp :: Either Message a -> Either Message a -> Either Message a
@@ -52,19 +28,19 @@ eitherOp (Right cmd) _ = Right cmd
 {- Quoting -}
 
 -- | Checks if a variable is quoted
-checkUnquotedVar :: Arg -> Map Var BashCommand -> Map Var Int -> Either Message Arg
-checkUnquotedVar (Arg s) history _ = case parse S.argUnquotedVar s of
+checkUnquotedVar :: Arg -> Map Var BashCommand -> Either Message Arg
+checkUnquotedVar (Arg s) history = case parse S.argUnquotedVar s of
   Left str -> Right (Arg s)
   Right var ->
     if Map.member (V s) history
       then Left (WarningMessage ("Warning: Variable " ++ s ++ " that was previously used is not quoted."))
       else Right (Arg s)
-checkUnquotedVar arg _ _ = Right arg
+checkUnquotedVar arg _ = Right arg
 
 -- | Checks if tilde is used in quotes
-checkQuotedTildeExpansionTokens :: Token -> Either Message [Token]
+checkQuotedTildeExpansionTokens :: Token -> Either Message Token
 checkQuotedTildeExpansionTokens token =
-  if token == "<tilde>" then Left (WarningMessage "Tilde expansion can't be used in strings") else Right [token]
+  if token == "<tilde>" then Left (WarningMessage "Tilde expansion can't be used in strings") else Right token
 
 -- | Checks if token could be a variable, considering if its in its history
 possVariableRefToken :: Token -> Map Var BashCommand -> Bool
@@ -82,9 +58,9 @@ tokenListSearch (t : ts) history =
     else tokenListSearch ts history
 
 -- | Checks if single quotes are closed by apostrophe
-checkSingleQuoteApostrophe :: Arg -> Map Var BashCommand -> Either String Arg
+checkSingleQuoteApostrophe :: Arg -> Map Var BashCommand -> Either Message Arg
 checkSingleQuoteApostrophe (SingleQuote tokens) history = case tokenListSearch tokens history of
-  Left err -> Left err
+  Left err -> Left (ErrorMessage err)
   Right _ -> Right (SingleQuote tokens)
 checkSingleQuoteApostrophe val _ = Right val
 
@@ -178,12 +154,12 @@ checkConditionalSt cmd _ = Right cmd
 {- Freq Misused Commands -}
 
 -- | Checks if sudo is being redirected
-checkRedirectInSudo :: BashCommand -> Either Message BashCommand
-checkRedirectInSudo (ExecCommand cmd@(ExecName cmdName) args) =
+checkRedirectInSudo :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkRedirectInSudo (ExecCommand cmd@(ExecName cmdName) args) _ =
   if cmdName == "sudo" && hasRedirect args
     then Left (WarningMessage "sudo is being redirected")
     else Right (ExecCommand cmd args)
-checkRedirectInSudo cmd = Right cmd
+checkRedirectInSudo cmd _ = Right cmd
 
 redirectArg :: Arg -> Bool
 redirectArg (Arg s) = s == "<" || s == ">" || s == ">>"
@@ -197,12 +173,12 @@ hasRedirect = Prelude.foldr ((||) . redirectArg) False
 -- checkArgumentsInAliases = undefined
 
 -- | Checks if redirections are in find
-checkRedirectionInFind :: BashCommand -> Either Message BashCommand
-checkRedirectionInFind (ExecCommand cmd@(ExecName cmdName) args) =
+checkRedirectionInFind :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkRedirectionInFind (ExecCommand cmd@(ExecName cmdName) args) _ =
   if cmdName == "find" && hasRedirect args
     then Left (WarningMessage "Redirections is being used on find command. Rewrite it.")
     else Right (ExecCommand cmd args)
-checkRedirectionInFind cmd = Right cmd
+checkRedirectionInFind cmd _ = Right cmd
 
 {- Beginner Mistakes -}
 
@@ -247,12 +223,12 @@ unstylisticInterpolation :: Arg -> Either Message Arg
 unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left (WarningMessage "Backticks are being used, which has been deprecated. Use $() instead.") else Right (SingleQuote tokens)
 unstylisticInterpolation arg = Right arg
 
-checkCommandSubstitution :: BashCommand -> Either Message BashCommand
-checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) =
+checkCommandSubstitution :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) _ =
   if cmdName == "find" && hasRedirect args
     then Left (WarningMessage "Style Warning: Redirections is being used on find command. Rewrite it.")
     else Right (ExecCommand cmd args)
-checkCommandSubstitution cmd = Right cmd
+checkCommandSubstitution cmd _ = Right cmd
 
 -- | Checks if outdated $[] is used instead of standard $((..)) in an Arg
 oldArithExpansionArg :: Arg -> Either Message Arg
@@ -262,11 +238,11 @@ oldArithExpansionArg (Arg s) = case parse S.oldArithmeticExpansion s of
 oldArithExpansionArg arg = Right arg
 
 -- | Checks if outdated $[] is used instead of standard $((..))
-checkArithmeticParentheses :: BashCommand -> Either Message BashCommand
-checkArithmeticParentheses (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
+checkArithmeticParentheses :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkArithmeticParentheses (ExecCommand cmd@(ExecName cmdName) args) _ = case mapM argArithmeticExpansion args of
   Left err -> Left err
   Right args' -> Right (ExecCommand cmd args')
-checkArithmeticParentheses cmd = Right cmd
+checkArithmeticParentheses cmd _ = Right cmd
 
 argArithmeticExpansion :: Arg -> Either Message Arg
 argArithmeticExpansion (Arg s) = case parse S.arithmeticExpansion s of
@@ -280,11 +256,11 @@ argArithmeticExpansion arg = Right arg
 -- Left "Style Warning: $ is being used in $()). $(($Random % 6)). Don't use $ on variables in $((..))"
 
 -- | Checks if $ is used for variables in $((..))
-checkNoVarInArithemetic :: BashCommand -> Either Message BashCommand
-checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) = case mapM argArithmeticExpansion args of
+checkNoVarInArithemetic :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) _ = case mapM argArithmeticExpansion args of
   Left err -> Left err
   Right args' -> Right (ExecCommand cmd args')
-checkNoVarInArithemetic cmd = Right cmd
+checkNoVarInArithemetic cmd _ = Right cmd
 
 -- | Checks if echo is unnecessarily used
 -- checkEchoUsage :: BashCommand -> Either String BashCommand
@@ -312,7 +288,7 @@ checkStringArrayConcatenation = undefined
 checkStringNumericalComparison :: BashCommand -> Either String BashCommand
 checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
--- | Checks if variables are defined but not used 
+-- | Checks if variables are defined but not used
 argUnusedVar :: Arg -> Map Var BashCommand -> Either Message Arg
 argUnusedVar (Arg s) history = case parse S.word s of
   Left _ -> Right (Arg s)
@@ -336,9 +312,13 @@ checkEscapeInSingleQuotes :: Token -> Either Message [Token]
 checkEscapeInSingleQuotes t =
   if t == "<escape>" then Left (ErrorMessage "Escape cannot be used in single quotes") else Right [t]
 
+mapRight :: Either Message Token -> Either Message [Token]
+mapRight (Right x) = Right [x]
+mapRight (Left x) = Left x
+
 checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either Message [Token]
 checkArgSingleQuotes (t : tokens) history =
-  let res = checkVarInSingleQuotes t `eitherOp` checkQuotedTildeExpansionTokens t `eitherOp` checkEscapeInSingleQuotes t
+  let res = checkVarInSingleQuotes t `eitherOp` mapRight (checkQuotedTildeExpansionTokens t) `eitherOp` checkEscapeInSingleQuotes t
    in case res of
         Left err -> Left err
         Right tt -> do
@@ -346,25 +326,25 @@ checkArgSingleQuotes (t : tokens) history =
           return (tt ++ tokenss)
 checkArgSingleQuotes [] _ = Right []
 
-checkVarInDoubleQuotes :: Token -> Map Var BashCommand -> BashCommand -> Either Message [Token]
+checkVarInDoubleQuotes :: Token -> Map Var BashCommand -> BashCommand -> Either Message Token
 checkVarInDoubleQuotes t history cmd =
   case parse S.variableRef t of
-    Left error -> Right [t]
+    Left error -> Right t
     Right var ->
       let V possVar = var
        in case Map.lookup var history of
             Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
             Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
-            Just _ -> Right [t]
+            Just _ -> Right t
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either Message [Token]
 checkArgDoubleQuotes tokens@(t : ts) history cmd =
-    let res = checkVarInDoubleQuotes t history cmd `eitherOp` checkQuotedTildeExpansionTokens t in
-      case res of
+  let res = checkVarInDoubleQuotes t history cmd `eitherOp` checkQuotedTildeExpansionTokens t
+   in case res of
         Left err -> Left err
         Right tt -> do
           tokenss <- checkArgDoubleQuotes ts history cmd
-          return (tt ++ tokenss)
+          return (tt : tokenss)
 checkArgDoubleQuotes [] _ _ = Right []
 
 checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
@@ -418,9 +398,9 @@ hasCorrectNumberPrintfArgs (x : xs) = case x of
   _ -> hasCorrectNumberPrintfArgs xs
 
 -- | Checks if argument count doesn't match in printf
-checkPrintArgCount :: BashCommand -> Either Message BashCommand
-checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left (WarningMessage $ "Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
-checkPrintArgCount cmd = Right cmd
+checkPrintArgCount :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkPrintArgCount (ExecCommand cmd@(ExecName cmdName) args) _ = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left (WarningMessage $ "Printf" ++ pretty cmdName ++ " has incorrect number of arguments.")
+checkPrintArgCount cmd _ = Right cmd
 
 -- | Checks if word boundaries are lost in array eval
 checkArrayEval :: BashCommand -> Either String BashCommand
@@ -462,3 +442,34 @@ checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
             Right args -> Right (ExecCommand cmd args)
     else Right (ExecCommand cmd args)
 checkNoVariablesInPrintf cmd history = Right cmd
+
+argCheckers :: [Arg -> Map Var BashCommand -> Either Message Arg]
+argCheckers = [checkUnquotedVar, checkSingleQuoteApostrophe, checkVarInPrintfArgs]
+
+tokenCheckers :: [Token -> Either Message Token]
+tokenCheckers = [checkQuotedTildeExpansionTokens]
+
+ifCheckers :: [IfExpression -> Either Message IfExpression]
+ifCheckers = [checkConstantTestExpressions, checkLiteralVacuousTrue, checkQuotedRegex, checkUnsupportedOperators, checkTestOperators, checkNumericalCompStrInExp, checkAndInExp]
+
+bashCheckers :: [BashCommand -> Map Var BashCommand -> Either Message BashCommand]
+bashCheckers =
+  [ checkConditionalSt,
+    checkRedirectInSudo,
+    checkRedirectionInFind,
+    checkCommandSubstitution,
+    checkArithmeticParentheses,
+    checkNoVarInArithemetic,
+    checkUnusedVar,
+    checkExecCommandArgs,
+    checkPrintArgCount,
+    checkNoVariablesInPrintf
+  ]
+
+-- Looks at different structures of bash command -> attempts to run checkers on it
+mainChecker :: BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message BashCommand
+mainChecker (ExecCommand cmd args) history varFreq = undefined
+mainChecker (Conditional ifExpr block1 block2) history varFreq = undefined
+mainChecker (PossibleConditional possIfExpr block1 block2) history varFreq = undefined
+mainChecker (Assign var expr) history varFreq = undefined
+mainChecker (PossibleAssign possAssign) history varFreq = undefined
