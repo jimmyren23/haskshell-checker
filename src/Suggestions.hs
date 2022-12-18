@@ -83,19 +83,15 @@ errorS :: Show a => a -> String
 errorS = show
 
 evalLine :: (MonadError String m, MonadState MyState m) => String -> m BashCommand
-evalLine s = do
-  let res = parse S.bashCommandP s
-  case res of
-    Left err -> throwError $ errorS err
-    Right bc -> do
-      myState <- State.get
-      let oldHistory = history myState
-      let res = C.checkExecCommandArgs bc oldHistory
-       in case res of
-            Left err -> throwError err
-            Right _ -> do
-              updateState bc
-              return bc
+evalLine s = case parse S.bashCommandP s of
+  Left err -> throwError $ errorS err
+  Right bc -> do
+    myState <- State.get
+    case C.checkExecCommandArgs bc (history myState) of
+      Left err -> throwError err
+      Right _ -> do
+        updateState bc
+        return bc
 
 evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
 evalAllLines [x] = do
