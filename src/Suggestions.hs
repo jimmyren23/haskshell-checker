@@ -2,6 +2,7 @@
 
 module Suggestions where
 
+import Checker (Message)
 import Checker qualified as C
 import Control.Applicative
 import Control.Monad.Except
@@ -81,12 +82,11 @@ updateState bc = case bc of
 
 -- | displays the error message
 errorS :: C.Message -> String
-errorS m = 
+errorS m =
   case m of
     C.ErrorMessage s -> "<ERROR> " ++ s
     C.WarningMessage s -> "<WARNING> " ++ s
     C.None -> empty
-
 
 -- | Shows the history and variable reference frequency
 showSt :: (a -> String) -> (a, MyState) -> String
@@ -103,7 +103,7 @@ showEx f (Right v) = "<SUCCESS> No issues detected ☺! \n\t<PARSED OUTPUT> " ++
 -- "<Result>: 5"
 
 -- | Evaluate a bashline
-evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m BashCommand
+evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m (BashCommand, [Message])
 evalBashLine bc = do
   myState <- State.get
   let oldHistory = history myState
@@ -116,17 +116,17 @@ evalBashLine bc = do
               -- Make sure to evaluate nested blocks too
               evalAllBashLines b1
               evalAllBashLines b2
-              return bc
+              return (bc, [])
     _ ->
       let res = C.checkExecCommandArgs bc oldHistory `C.eitherOp` C.checkAssignmentExp bc oldHistory
        in case res of
             Left err -> throwError $ errorS err
             Right _ -> do
               updateState bc
-              return bc
+              return (bc, [])
 
 -- | Evaluate all bashlines
-evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m BashCommand
+evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m (BashCommand, [Message])
 evalAllBashLines [x] = do
   evalBashLine x
 evalAllBashLines (x : xs) = do
