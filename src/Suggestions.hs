@@ -33,6 +33,8 @@ data MyState = MyState
   }
   deriving (Show, Eq)
 
+data Message = ErrorMessage String | WarningMessage String
+
 -- | Action that updates the history
 updateHistory :: MonadState MyState m => Var -> BashCommand -> m ()
 updateHistory var bc = do
@@ -93,9 +95,9 @@ showEx _ (Left m) = "<Error>: " ++ m
 showEx f (Right v) = "<Result>: " ++ f v
 
 -- >>> showEx show (Left "Error")
--- "<HaskShell> Error"
+-- "<Error>: Error"
 -- >>> showEx show (Right 5)
--- "Result: 5"
+-- "<Result>: 5"
 
 -- | Evaluate a bashline
 evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m BashCommand

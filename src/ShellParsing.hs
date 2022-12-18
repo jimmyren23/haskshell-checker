@@ -259,7 +259,6 @@ arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "("
 oldArithmeticExpansion :: Parser String
 oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
 
-
 -- >>> parse possibleAssignP "a =1"
 -- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
 
@@ -361,7 +360,7 @@ blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
 {- Script parser -}
-parseShellScript :: String -> IO (Either ParseResult Block)
+parseShellScript :: String -> IO (Either String Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
 word2 :: Parser String
