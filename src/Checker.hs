@@ -1,9 +1,9 @@
 module Checker where
 
 import Control.Applicative (Alternative (..))
+import Data.Foldable
 import Data.Map
 import Data.Map qualified as Map
-import Data.Foldable
 import Parsing
 import PrettyPrint (pretty)
 import ShellParsing qualified as S
@@ -26,13 +26,11 @@ type VarFrequency = Map Var Int
 --   pure :: a -> CommandCheck a
 --   pure a = CommandCheck (\_ _ _ -> Right a)
 
-
 --   (<*>) :: CommandCheck (a -> b) -> CommandCheck a -> CommandCheck b
 --   c1@(CommandCheck f) <*> c2@(CommandCheck g) = CommandCheck $ \m env vars -> do
 --     a <- g m env vars
 --     aa <- f a env vars
 --     return (aa a)
-
 
 -- instance Alternative CommandCheck where
 --   empty :: CommandCheck a
@@ -54,7 +52,7 @@ eitherOp (Left err1) _ = Left err1
 eitherOp _ (Left err2) = Left err2
 eitherOp (Right cmd) _ = Right cmd
 
-{- Quoting [5] -} 
+{- Quoting [5] -}
 
 -- | Checks if a variable is quoted
 checkUnquotedVar :: Arg -> Map Var BashCommand -> Either Message Arg
@@ -293,12 +291,11 @@ checkNoVarInArithemetic cmd _ = Right cmd
 
 -- | Checks if arrays are assigned to strings
 checkArrayAssignAsString :: Expression -> Either Message Expression
-checkArrayAssignAsString  exp@(Val (StringVal str)) =
+checkArrayAssignAsString exp@(Val (StringVal str)) =
   case parse (stringP "$@") str of
     Left err -> Right exp
     Right _ -> Left (WarningMessage "Assigning an array to a string using `$@`.")
 checkArrayAssignAsString exp = Right exp
-
 
 -- | Checks if variables are defined but not used
 argUnusedVar :: Arg -> Map Var BashCommand -> Either Message Arg
@@ -393,13 +390,12 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
 checkAssignmentExp :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkAssignmentExp cmd@(Assign var exp) history  = 
-  let res = checkArrayAssignAsString exp in
-    case res of
-      Left err -> Left err
-      Right _ -> Right cmd
+checkAssignmentExp cmd@(Assign var exp) history =
+  let res = checkArrayAssignAsString exp
+   in case res of
+        Left err -> Left err
+        Right _ -> Right cmd
 checkAssignmentExp cmd _ = Right cmd
-
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"
@@ -468,7 +464,7 @@ checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
 checkNoVariablesInPrintf cmd history = Right cmd
 
 argCheckers :: [Arg -> Map Var BashCommand -> Either Message Arg]
-argCheckers = [checkUnquotedVar, checkSingleQuoteApostrophe, checkVarInPrintfArgs]
+argCheckers = [checkUnquotedVar, checkSingleQuoteApostrophe]
 
 tokenCheckers :: [Token -> Either Message Token]
 tokenCheckers = [checkQuotedTildeExpansionTokens]
@@ -490,8 +486,23 @@ bashCheckers =
     checkNoVariablesInPrintf
   ]
 
+argAllCheckers :: [Arg] -> Map Var BashCommand -> [Arg -> Map Var BashCommand -> Either Message Arg] -> [Message]
+argAllCheckers args history = Prelude.foldr (\x acc -> acc ++ argsChecker args x Map.empty) []
+  where
+    argsChecker args checker history =
+      Prelude.foldr
+        ( \x acc ->
+            case x of
+              Left z -> z : acc
+              Right _ -> acc
+        )
+        []
+        (fmap checkresult args)
+      where
+        checkresult = flip checker history
+
 -- Looks at different structures of bash command -> attempts to run checkers on it
-mainChecker :: BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message BashCommand
+mainChecker :: BashCommand -> Map Var BashCommand -> Map Var Int -> Either Message (BashCommand, [Message])
 mainChecker (ExecCommand cmd args) history varFreq = undefined
 mainChecker (Conditional ifExpr block1 block2) history varFreq = undefined
 mainChecker (PossibleConditional possIfExpr block1 block2) history varFreq = undefined

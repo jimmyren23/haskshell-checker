@@ -149,3 +149,6 @@ evalScript filename = do
   case res of
     Left err -> putStrLn err
     Right (Block bcs) -> putStrLn ("\t" ++ evalAll bcs)
+
+-- >>> show ((Assign (V "a") (Val (IntVal 5))), [C.WarningMessage "hi"])
+-- "(Assign (V \"a\") (Val (IntVal 5)),[WarningMessage \"hi\"])"
