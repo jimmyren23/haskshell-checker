@@ -33,25 +33,23 @@ data MyState = MyState
   }
   deriving (Show, Eq)
 
+updateHistory :: MonadState MyState m => Var -> BashCommand -> m ()
+updateHistory var bc = do
+  myState <- State.get
+  let oldHistory = history myState
+  let newHistory = Map.insert var bc oldHistory
+  put myState {history = newHistory}
+
 -- | Action that updates the state
-updHistory :: MonadState MyState m => BashCommand -> m ()
-updHistory bc = case bc of
+updState :: MonadState MyState m => BashCommand -> m ()
+updState bc = case bc of
   PossibleAssign pa@(PossibleAssignWS var _ eq _ exp) -> do
-    myState <- State.get
-    let oldHistory = history myState
-    let newHistory = Map.insert var bc oldHistory
-    put myState {history = newHistory}
+    updateHistory var bc
   PossibleAssign pa@(PossibleAssignDS var eq exp) -> do
-    myState <- State.get
-    let oldHistory = history myState
-    let newHistory = Map.insert var bc oldHistory
-    put myState {history = newHistory}
+    updateHistory var bc
   Assign var ex -> do
-    myState <- State.get
-    let oldHistory = history myState
-    let newHistory = Map.insert var bc oldHistory
-    put myState {history = newHistory}
-  _ -> do
+    updateHistory var bc
+  _ ->
     return ()
 
 -- | displays the error message
@@ -70,7 +68,7 @@ evalLine s = do
        in case res of
             Left err -> throwError err
             Right _ -> do
-              updHistory bc
+              updState bc
               return bc
 
 evalAllLines :: (MonadError String m, MonadState MyState m) => [String] -> m BashCommand
@@ -131,7 +129,7 @@ evalBashLine bc = do
        in case res of
             Left err -> throwError $ errorS err
             Right _ -> do
-              updHistory bc
+              updState bc
               return bc
 
 evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m BashCommand
@@ -142,7 +140,7 @@ evalAllBashLines (x : xs) = do
   evalAllBashLines xs
 evalAllBashLines [] = undefined
 
--- | Take 
+-- | Take
 evalAll :: [BashCommand] -> String
 evalAll bcs =
   evalAllBashLines bcs
