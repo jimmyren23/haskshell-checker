@@ -226,6 +226,13 @@ checkRedirectionInFind cmd _ = Right cmd
 
 {- Beginner Mistakes -}
 
+checkCommaSeparatedArrays :: Expression -> Either Message Expression
+checkCommaSeparatedArrays exp@(Arr s) =
+  case parse S.entireCommaInArr s of
+    Left _ -> Right exp
+    Right _ -> Left (WarningMessage "Use spaces to separate array elements.")
+checkCommaSeparatedArrays exp = Right exp
+
 {- Style [4] -}
 
 -- | Checks if token uses backticks, should be $() instead
@@ -398,11 +405,11 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
 checkAssignmentExp :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkAssignmentExp cmd@(Assign var exp) history =
-  let res = checkArrayAssignAsString exp
-   in case res of
-        Left err -> Left err
-        Right _ -> Right cmd
+checkAssignmentExp cmd@(Assign (V var) exp) history  = 
+  let res = checkArrayAssignAsString exp `eitherOp` checkVariableAssignedToItself var exp  `eitherOp` checkCommaSeparatedArrays exp in
+    case res of
+      Left err -> Left err
+      Right _ -> Right cmd
 checkAssignmentExp cmd _ = Right cmd
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
@@ -470,6 +477,17 @@ checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
             Right args -> Right (ExecCommand cmd args)
     else Right (ExecCommand cmd args)
 checkNoVariablesInPrintf cmd history = Right cmd
+
+{- Miscellaneous -}
+
+-- | Checks if a variable is assigned to itself
+checkVariableAssignedToItself :: String -> Expression -> Either Message Expression
+checkVariableAssignedToItself varName exp@(Var (V s)) =
+    if s == varName then Left (WarningMessage $ varName ++ " is assigned to itself - this does not do anything.") else Right exp
+checkVariableAssignedToItself _ exp = Right exp
+
+
+
 
 argCheckers :: [Arg -> Map Var BashCommand -> Either Message Arg]
 argCheckers = [checkUnquotedVar, checkSingleQuoteApostrophe]

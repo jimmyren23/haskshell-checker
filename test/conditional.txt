@@ -1,6 +1,6 @@
-echo hi
+echo 'hi'
 y=1
-x=(hi hello)
+x=(hi, hi)
 if [ $y > 'hii' ]
 then
   echo "$x"

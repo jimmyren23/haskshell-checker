@@ -282,7 +282,7 @@ arrAssignP :: Parser Expression
 arrAssignP = Arr <$> wsP (between (string "(") (many (satisfy (/= ')'))) (string ")"))
 
 -- >>> parse arrAssignP "(hi hello)"
--- Left "[ParseError] No more characters to parse."
+-- Right (Arr "hi hello")
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
@@ -430,8 +430,8 @@ conditionalP =
 -- Left "[ParseError] Please check line:   hello\"   ."
 
 
--- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) "if [ hi > 1 ]"
--- parse error (possibly incorrect indentation or mismatched brackets)
+-- >>> parse bashCommandP "x=$xe"
+-- Right (Assign (V "x") (Var (V "xe")))
 
 -- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
 
@@ -450,8 +450,9 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- >>> parse bashCommandP "x = 3"
 -- Right (PossibleAssign (V "x") (Val (IntVal 3)))
 
--- >>> parse bashCommandP "echo '$hi'"
--- Right (ExecCommand (ExecName "echo") [SingleQuote ["$hi"]])
+
+-- >>> parse bashCommandP "x=(hi, hi)"
+-- Right (Assign (V "x") (Arr "hi, hi"))
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
 -- Left " -a awefew wefjkl"
@@ -465,6 +466,15 @@ parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
 word2 :: Parser String
 word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
+
+commaInArr :: Parser String
+commaInArr = many (satisfy (/= ',')) <* stringP "," <* many (char ' ')
+
+entireCommaInArr :: Parser [String]
+entireCommaInArr = some commaInArr <* (many get)
+
+-- >>> parse (some commaInArrParsing <* (many get)) "hello, hi hi"
+-- Right ["hello"]
 
 -- newlineP :: Parser String
 -- newlineP =
