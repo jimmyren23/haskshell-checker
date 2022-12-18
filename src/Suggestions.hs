@@ -33,8 +33,6 @@ data MyState = MyState
   }
   deriving (Show, Eq)
 
-data Message = ErrorMessage String | WarningMessage String
-
 -- | Action that updates the history
 updateHistory :: MonadState MyState m => Var -> BashCommand -> m ()
 updateHistory var bc = do

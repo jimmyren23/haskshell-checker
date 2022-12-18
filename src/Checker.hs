@@ -7,6 +7,11 @@ import PrettyPrint (pretty)
 import ShellParsing qualified as S
 import ShellSyntax
 
+-- Datatype to differentiate between messages
+type ErrorMessage = String
+
+type WarningMessage = String
+
 -- | Finds the first result with error
 eitherOp :: Either String a -> Either String a -> Either String a
 eitherOp (Left err1) _ = Left err1
@@ -251,19 +256,18 @@ checkArgSingleQuotes [] _ = Right []
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either String [Token]
 checkArgDoubleQuotes tokens@(t : ts) history cmd =
-   case parse S.variableRef t of
-          Left error -> Right tokens
-          Right var ->
-            let V possVar = var
-            in case Map.lookup var history of
-                  Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-                  Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
-                  Just _ ->
-                     do
-                      tokenss <- checkArgDoubleQuotes ts history cmd
-                      return (t : tokenss)
-checkArgDoubleQuotes [] _ _  = Right []
-
+  case parse S.variableRef t of
+    Left error -> Right tokens
+    Right var ->
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
+            Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
+            Just _ ->
+              do
+                tokenss <- checkArgDoubleQuotes ts history cmd
+                return (t : tokenss)
+checkArgDoubleQuotes [] _ _ = Right []
 
 -- | How to print original command for possible assigns?
 -- | 1. Store in history map as a string in its original form
@@ -277,7 +281,7 @@ checkArg args@(x : xs) history cmd =
         Left error -> Right args
         Right var ->
           let V possVar = var
-          in case Map.lookup var history of
+           in case Map.lookup var history of
                 Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
                 Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd)
                 Just _ -> do
@@ -303,11 +307,11 @@ checkVarInExp :: IfExpression -> Map Var BashCommand -> IfExpression -> Either S
 checkVarInExp exp history fullExp =
   case exp of
     IfVar var ->
-      let V possVar = var in
-      case Map.lookup var history of
-        Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
-        Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
-        Just _ -> Right fullExp
+      let V possVar = var
+       in case Map.lookup var history of
+            Nothing -> Left ("Variable '" ++ possVar ++ "'" ++ " is not assigned")
+            Just (PossibleAssign pa) -> Left ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty fullExp)
+            Just _ -> Right fullExp
     IfOp1 _ exp -> checkVarInExp exp history fullExp
     IfOp2 exp _ _ -> checkVarInExp exp history fullExp
     _ -> Right fullExp

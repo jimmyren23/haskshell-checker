@@ -24,8 +24,6 @@ import System.IO.Error qualified as IO
 import Test.HUnit
 import Prelude hiding (filter)
 
--- Untyped shell
-
 -- | A parser is a function that takes a string and returns untyped shell
 newtype Parser a = P {doParse :: String -> Either String (a, String)}
 
@@ -77,9 +75,7 @@ get = P $ \s -> case s of
   (c : cs) -> Right (c, cs)
   [] -> Left "[ParseError] No more characters to parse!"
 
--- | Use a parser for a particular string. Note that this parser
--- combinator library doesn't support descriptive parse errors, but we
--- give it a type similar to other Parsing libraries.
+-- | Use a parser for a particular string.
 parse :: Parser a -> String -> Either String a
 parse parser str =
   case doParse parser str of
