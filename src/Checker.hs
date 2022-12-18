@@ -86,7 +86,7 @@ checkLiteralVacuousTrue exp =
   case exp of
     IfOp1 op (IfVal (StringVal _)) -> if op `elem` [LengthZero, LengthNonZero] then Left (ErrorMessage $ "Argument to " ++ pretty op ++ " is always true.") else Right exp
     _ -> Right exp
-    
+
 -- | Checks if regex is quoted in expression with =~
 checkQuotedRegex :: IfExpression -> Either Message IfExpression
 checkQuotedRegex exp =
@@ -329,19 +329,25 @@ checkArgSingleQuotes (t : tokens) history =
           return (tt ++ tokenss)
 checkArgSingleQuotes [] _ = Right []
 
-checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either Message [Token]
-checkArgDoubleQuotes tokens@(t : ts) history cmd =
+checkVarInDoubleQuotes :: Token -> Map Var BashCommand -> BashCommand -> Either Message [Token]
+checkVarInDoubleQuotes t history cmd =
   case parse S.variableRef t of
-    Left error -> Right tokens
+    Left error -> Right [t]
     Right var ->
       let V possVar = var
        in case Map.lookup var history of
             Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
             Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
-            Just _ ->
-              do
-                tokenss <- checkArgDoubleQuotes ts history cmd
-                return (t : tokenss)
+            Just _ -> Right [t]
+
+checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either Message [Token]
+checkArgDoubleQuotes tokens@(t : ts) history cmd =
+    let res = checkVarInDoubleQuotes t history cmd `eitherOp` checkQuotedTildeExpansionTokens t in
+      case res of
+        Left err -> Left err
+        Right tt -> do
+          tokenss <- checkArgDoubleQuotes ts history cmd
+          return (tt ++ tokenss)
 checkArgDoubleQuotes [] _ _ = Right []
 
 checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
@@ -353,8 +359,8 @@ checkArg args@(x : xs) history cmd =
         Right var ->
           let V possVar = var
            in case Map.lookup var history of
-                Nothing -> Left (ErrorMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
-                Just (PossibleAssign pa) -> Left (ErrorMessage ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
+                Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
+                Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ pretty var ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
                 Just _ -> do
                   args <- checkArg xs history cmd
                   return (x : args)
