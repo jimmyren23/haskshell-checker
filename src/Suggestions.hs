@@ -33,6 +33,7 @@ data MyState = MyState
   }
   deriving (Show, Eq)
 
+-- | Action that updates the history
 updateHistory :: MonadState MyState m => Var -> BashCommand -> m ()
 updateHistory var bc = do
   myState <- State.get
@@ -40,15 +41,26 @@ updateHistory var bc = do
   let newHistory = Map.insert var bc oldHistory
   put myState {history = newHistory}
 
+-- | Action that updates the varFrequency
+updateVarFrequency :: MonadState MyState m => Var -> m ()
+updateVarFrequency var = do
+  myState <- State.get
+  let oldVarFrequency = varFrequency myState
+  let newVarFrequency = Map.insertWith (+) var 1 oldVarFrequency
+  put myState {varFrequency = newVarFrequency}
+
 -- | Action that updates the state
 updState :: MonadState MyState m => BashCommand -> m ()
 updState bc = case bc of
   PossibleAssign pa@(PossibleAssignWS var _ eq _ exp) -> do
     updateHistory var bc
+    updateVarFrequency var
   PossibleAssign pa@(PossibleAssignDS var eq exp) -> do
     updateHistory var bc
+    updateVarFrequency var
   Assign var ex -> do
     updateHistory var bc
+    updateVarFrequency var
   _ ->
     return ()
 
