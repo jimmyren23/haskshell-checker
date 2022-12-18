@@ -3,6 +3,7 @@ module Checker where
 import Control.Applicative (Alternative (..))
 import Data.Map
 import Data.Map qualified as Map
+import Data.Foldable
 import Parsing
 import PrettyPrint (pretty)
 import ShellParsing qualified as S
@@ -10,7 +11,7 @@ import ShellSyntax
 import Test.HUnit.Lang (Result (Error))
 
 -- Datatype to differentiate between messages
-data Message = WarningMessage String | ErrorMessage String
+data Message = WarningMessage String | ErrorMessage String | None
   deriving (Show, Eq)
 
 -- History is a map of variables to the command assigned to it
@@ -19,13 +20,41 @@ type History = Map Var BashCommand
 -- VarFrequency is a map of variables to the number of times they have been used
 type VarFrequency = Map Var Int
 
+-- newtype CommandCheck a = CommandCheck {checkCommand :: a -> Map Var BashCommand -> Map Var Int -> Either Message a}
+
+-- instance Applicative CommandCheck where
+--   pure :: a -> CommandCheck a
+--   pure a = CommandCheck (\_ _ _ -> Right a)
+
+
+--   (<*>) :: CommandCheck (a -> b) -> CommandCheck a -> CommandCheck b
+--   c1@(CommandCheck f) <*> c2@(CommandCheck g) = CommandCheck $ \m env vars -> do
+--     a <- g m env vars
+--     aa <- f a env vars
+--     return (aa a)
+
+
+-- instance Alternative CommandCheck where
+--   empty :: CommandCheck a
+--   empty = CommandCheck (\_ _ _ -> Left (WarningMessage "error"))
+
+--   (<|>) :: CommandCheck a -> CommandCheck a -> CommandCheck a
+--   p1 <|> p2 = CommandCheck (\a history freq -> checkCommand p1 a history freq `eitherOp` checkCommand p2 a history freq)
+
+-- instance Alternative Parser where
+--   empty :: Parser a
+--   empty = P $ const $ Left "error"
+
+--   (<|>) :: Parser a -> Parser a -> Parser a
+--   p1 <|> p2 = P $ \s -> doParse p1 s `firstRight` doParse p2 s
+
 -- | Finds the first result with error
 eitherOp :: Either Message a -> Either Message a -> Either Message a
 eitherOp (Left err1) _ = Left err1
 eitherOp _ (Left err2) = Left err2
 eitherOp (Right cmd) _ = Right cmd
 
-{- Quoting -}
+{- Quoting [5] -} 
 
 -- | Checks if a variable is quoted
 checkUnquotedVar :: Arg -> Map Var BashCommand -> Either Message Arg
@@ -50,22 +79,24 @@ possVariableRefToken t history =
         Left _ -> False
         Right var -> Map.member var history
 
-tokenListSearch :: [Token] -> Map Var BashCommand -> Either String [Token]
+-- | Checks if variable was quoted or not when used
+tokenListSearch :: [Token] -> Map Var BashCommand -> Either Message [Token]
 tokenListSearch [] _ = Right []
 tokenListSearch (t : ts) history =
   if possVariableRefToken t history
-    then Left ("Warning: Variable " ++ t ++ " that was previously used is not quoted.")
+    then Left (WarningMessage $ "Warning: Variable " ++ t ++ " that was previously used is not quoted.")
     else tokenListSearch ts history
 
 -- | Checks if single quotes are closed by apostrophe
 checkSingleQuoteApostrophe :: Arg -> Map Var BashCommand -> Either Message Arg
 checkSingleQuoteApostrophe (SingleQuote tokens) history = case tokenListSearch tokens history of
-  Left err -> Left (ErrorMessage err)
+  Left err -> Left err
   Right _ -> Right (SingleQuote tokens)
 checkSingleQuoteApostrophe val _ = Right val
 
-{- Conditionals -}
+{- Conditionals [8] -}
 
+-- | Checks if constant values are being compared in the test expression
 checkConstantTestExpressions :: IfExpression -> Either Message IfExpression
 checkConstantTestExpressions exp =
   case exp of
@@ -137,12 +168,27 @@ checkNumericalCompStrInExp exp =
     IfOp3 _ op (IfVal (StringVal _)) -> if op `elem` numOps then Left (ErrorMessage $ pretty op ++ pretty " is for numerical comparisons.") else Right exp
     _ -> Right exp
 
+-- | Checks if && is used in test expressions
 checkAndInExp :: IfExpression -> Either Message IfExpression
 checkAndInExp exp =
   case exp of
     IfOp2 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
-    IfOp3 _ AndIf _ -> Left (ErrorMessage $ pretty And ++ " cannot be used inside [...] or [[...]].")
     _ -> Right exp
+
+allWarningCondCheckers :: [IfExpression -> Either Message IfExpression]
+allWarningCondCheckers = [checkConstantTestExpressions, checkQuotedRegex, checkTestOperators]
+
+func :: IfExpression -> (IfExpression -> Either Message IfExpression) -> [Message] -> [Message]
+func exp f msgs =
+  case f exp of
+    Right _ -> None : msgs
+    Left m -> m : msgs
+
+runWarningCondCheckers :: IfExpression -> [Message]
+runWarningCondCheckers exp = Data.Foldable.foldr (func exp) [] allWarningCondCheckers
+
+-- >>> runWarningCondCheckers (IfOp2 (IfVar (V "y")) Reg (IfVal (StringVal "x+")))
+-- [None,WarningMessage "Remove quotes in `y =~ 'x+'` to match as a regex instead of literally.",None]
 
 checkConditionalSt :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
@@ -151,7 +197,7 @@ checkConditionalSt cmd@(Conditional exp (Block b1) (Block b2)) history =
     return cmd
 checkConditionalSt cmd _ = Right cmd
 
-{- Freq Misused Commands -}
+{- Freq Misused Commands [2] -}
 
 -- | Checks if sudo is being redirected
 checkRedirectInSudo :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
@@ -182,47 +228,20 @@ checkRedirectionInFind cmd _ = Right cmd
 
 {- Beginner Mistakes -}
 
--- DONE
--- -- | Checks if dollar sign is present in assignments
--- checkDollarSignInAssignments :: BashCommand -> Either String BashCommand
--- checkDollarSignInAssignments = undefined
-
--- DONE
--- -- | Cheecks if elements in array are separated by commas
--- checkCommaSeparatedArrays :: BashCommand -> Either String BashCommand
--- checkCommaSeparatedArrays = undefined
-
--- | Checks if 'else if' is used
-checkElseIf :: BashCommand -> Either String BashCommand
-checkElseIf = undefined
-
--- | Checks if function has not been defined previously
--- checkUndefinedFunction :: BashCommand -> Either String BashCommand
--- checkUndefinedFunction = undefined
-
--- | Checks if only false is present conditional expression
-checkSingleFalse :: BashCommand -> Either String BashCommand
-checkSingleFalse = undefined
-
--- | Checks if (...) is used instead of test operator
-checkParenthesisInsteadOfTest :: BashCommand -> Either String BashCommand
-checkParenthesisInsteadOfTest = undefined
-
-{- Style -}
-
--- | Checks if `` is used to interpolate instead of $()
+{- Style [4] -}
 
 -- | Checks if token uses backticks, should be $() instead
+unstylisticInterpolation :: Arg -> Either Message Arg
+unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left (WarningMessage "Backticks are being used, which has been deprecated. Use $() instead.") else Right (SingleQuote tokens)
+unstylisticInterpolation arg = Right arg
+
 backTickToken :: Token -> Bool
 backTickToken t =
   case parse S.backticksP t of
     Left _ -> False
     Right _ -> True
 
-unstylisticInterpolation :: Arg -> Either Message Arg
-unstylisticInterpolation (SingleQuote tokens) = if Prelude.foldr ((||) . backTickToken) False tokens then Left (WarningMessage "Backticks are being used, which has been deprecated. Use $() instead.") else Right (SingleQuote tokens)
-unstylisticInterpolation arg = Right arg
-
+-- | Checks if redirections are used in find command
 checkCommandSubstitution :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkCommandSubstitution (ExecCommand cmd@(ExecName cmdName) args) _ =
   if cmdName == "find" && hasRedirect args
@@ -270,23 +289,16 @@ checkNoVarInArithemetic cmd _ = Right cmd
 -- checkCatUsage :: BashCommand -> Either String BashCommand
 -- checkCatUsage = undefined
 
-{- Data and typing errors -}
+{- Data and typing errors [6] -}
 
 -- | Checks if arrays are assigned to strings
-checkArrayAssignAsString :: BashCommand -> Either String BashCommand
-checkArrayAssignAsString = undefined -- \$@ -> Used to access bash command line args array
+checkArrayAssignAsString :: Expression -> Either Message Expression
+checkArrayAssignAsString  exp@(Val (StringVal str)) =
+  case parse (stringP "$@") str of
+    Left err -> Right exp
+    Right _ -> Left (WarningMessage "Assigning an array to a string using `$@`.")
+checkArrayAssignAsString exp = Right exp
 
--- | Checks if arrays are referenced as strings
-checkArrayReferenceInString :: BashCommand -> Either String BashCommand
-checkArrayReferenceInString = undefined
-
--- | Checks if arrays and strings are being concatenated
-checkStringArrayConcatenation :: BashCommand -> Either String BashCommand
-checkStringArrayConcatenation = undefined
-
--- | Checks if numerical operators are used against strings
-checkStringNumericalComparison :: BashCommand -> Either String BashCommand
-checkStringNumericalComparison = undefined -- \$# retrives # of params passed in, [str] > [str]
 
 -- | Checks if variables are defined but not used
 argUnusedVar :: Arg -> Map Var BashCommand -> Either Message Arg
@@ -302,15 +314,17 @@ checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history = case mapM (`a
   Right args' -> Right (ExecCommand cmd args')
 checkUnusedVar cmd _ = Right cmd
 
+-- | Checks if variables are used in single quotes
 checkVarInSingleQuotes :: Token -> Either Message [Token]
 checkVarInSingleQuotes t =
   case parse S.variableRef t of
     Left error -> Right [t]
     Right _ -> Left (WarningMessage "Variables cannot be used inside single quotes.")
 
-checkEscapeInSingleQuotes :: Token -> Either Message [Token]
-checkEscapeInSingleQuotes t =
-  if t == "<escape>" then Left (ErrorMessage "Escape cannot be used in single quotes") else Right [t]
+-- -- | Checks if
+-- checkEscapeInSingleQuotes :: Token -> Either Message [Token]
+-- checkEscapeInSingleQuotes t =
+--   if t == "<escape>" then Left (ErrorMessage "Escape cannot be used in single quotes") else Right [t]
 
 mapRight :: Either Message Token -> Either Message [Token]
 mapRight (Right x) = Right [x]
@@ -318,7 +332,7 @@ mapRight (Left x) = Left x
 
 checkArgSingleQuotes :: [Token] -> Map Var BashCommand -> Either Message [Token]
 checkArgSingleQuotes (t : tokens) history =
-  let res = checkVarInSingleQuotes t `eitherOp` mapRight (checkQuotedTildeExpansionTokens t) `eitherOp` checkEscapeInSingleQuotes t
+  let res = checkVarInSingleQuotes t `eitherOp` mapRight (checkQuotedTildeExpansionTokens t)
    in case res of
         Left err -> Left err
         Right tt -> do
@@ -335,6 +349,7 @@ checkVarInDoubleQuotes t history cmd =
        in case Map.lookup var history of
             Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
             Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ possVar ++ " when you wrote: " ++ pretty pa ++ "? It was used later in: " ++ pretty cmd))
+            Just (Assign _ (Arr _)) -> Left (WarningMessage "Referencing arrays as strings.")
             Just _ -> Right t
 
 checkArgDoubleQuotes :: [Token] -> Map Var BashCommand -> BashCommand -> Either Message [Token]
@@ -376,6 +391,15 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
   args <- checkArg (x : xs) history command
   return (ExecCommand cmd args)
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
+
+checkAssignmentExp :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
+checkAssignmentExp cmd@(Assign var exp) history  = 
+  let res = checkArrayAssignAsString exp in
+    case res of
+      Left err -> Left err
+      Right _ -> Right cmd
+checkAssignmentExp cmd _ = Right cmd
+
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
 -- Left "Error: x is not assigned"

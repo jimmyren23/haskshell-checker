@@ -235,8 +235,8 @@ sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
-wordP :: Parser Value
-wordP = Word <$> wsP (many (satisfy (/= ' ')) <* string " ")
+-- wordP :: Parser Value
+-- wordP = Word <$> wsP (many (satisfy (/= ' ')) <* string " ")
 
 -- >>> parse conditionalP "if [[ hes -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"$y\"\nfi\n"
 -- Left "[ParseError] Please check line:   $y\"   "
@@ -259,23 +259,34 @@ expP = compP
         <|> Op1 <$> uopP <*> uopexpP
     baseP = Var <$> variableRef <|> Val <$> valueP
 
+wordP :: Parser Value
+wordP = Word <$> wsP word
+
+-- >>> parse wordP "hi "
+-- Right (Word "hi")
+
 -- | Parses a conditional expression
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
   where
     bopexpP = uopexpP `chainl1` (flip IfOp2 <$> ifBopP)
     uopexpP =
-      baseP
-        <|> IfOp1 <$> ifUopP <*> uopexpP
+      IfOp1 <$> ifUopP <*> uopexpP <|> baseP
     baseP = IfVar <$> variableRef <|> IfVal <$> valueP
 
--- >>> parse (wsP uopP <* IfVal <$> valueP) "-n \'hi\'"
--- Variable not in scope: uopexpP :: Parser b0
+-- >>> parse ifExpP "$y > hi"
+-- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
 
+-- | Parses array assignments in the form (...)
+arrAssignP :: Parser Expression
+arrAssignP = Arr <$> wsP (between (string "(") (many (satisfy (/= ')'))) (string ")"))
+
+-- >>> parse arrAssignP "(hi hello)"
+-- Left "[ParseError] No more characters to parse."
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
-assignP = (Assign . V <$> name) <*> (char '=' *> expP)
+assignP = (Assign . V <$> name) <*> (char '=' *> (arrAssignP <|> expP))
 
 test_assign :: Test
 test_assign =
@@ -404,14 +415,19 @@ conditionalP :: Parser BashCommand
 conditionalP =
   -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
   Conditional
-    <$> ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]"))
+    <$> ((wsP (string "if [") *> ifExpP <* wsP (string "]"))
       <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]"))
          <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))")))
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
--- >>> parse ((wsP (string "then") *> wsP blockP)) "\nthen\n  x=2"
--- Left "No parses"
+-- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))) "if [ $y > hi ]\n"
+-- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
+
+
+-- parse error (possibly incorrect indentation or mismatched brackets)
+-- >>> parse conditionalP "if [ $y > hi ]\nthen\n  echo $x\nelse\n  echo \"hello\"\nfi\n"
+-- Left "[ParseError] Please check line:   hello\"   ."
 
 
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) "if [ hi > 1 ]"
@@ -422,8 +438,8 @@ conditionalP =
 bashCommandP :: Parser BashCommand
 bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 
--- >>> parse bashCommandP "echo \"$hi\""
--- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
+-- >>> parse bashCommandP "echo \"~\""
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]])
 
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"

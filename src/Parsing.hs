@@ -38,7 +38,7 @@ instance Applicative Parser where
   pure x = P $ \s -> Right (x, s)
 
   (<*>) :: Parser (a -> b) -> Parser a -> Parser b
-  p1 <*> p2 = P $ \s -> do
+  p1@(P a) <*> p2 = P $ \s -> do
     (f, s') <- doParse p1 s
     (x, s'') <- doParse p2 s'
     return (f x, s'')
@@ -65,13 +65,13 @@ filter f p = P $ \s -> do
     then return (c, cs)
     else do
       sn <- parse untilNewline cs
-      Left ("[ParseError] Please check line:   " ++ sn ++ "   .")
+      Left ("\t<PARSING ERROR> Please check line: " ++ sn ++ ".")
 
 -- | Return the next character from the input
 get :: Parser Char
 get = P $ \s -> case s of
   (c : cs) -> Right (c, cs)
-  [] -> Left "[ParseError] No more characters to parse."
+  [] -> Left "\t<PARSING ERROR> No more characters to parse."
 
 -- | Use a parser for a particular string.
 parse :: Parser a -> String -> Either String a
@@ -167,7 +167,7 @@ eof = P $ \s -> case s of
   [] -> Right ((), [])
   x -> do
     sn <- parse untilNewline x
-    Left ("Please check line:   " ++ sn ++ "   ")
+    Left ("\t<PARSING ERROR> Please check line: `" ++ sn ++ "`.")
 
 untilNewline :: Parser String
 untilNewline = many (satisfy (/= '\n')) <* newline <* many get
@@ -187,7 +187,7 @@ try1 filename = do
 -- Left "err"
 
 -- >>> try1 "test/conditional.txt"
--- "x=1\nif (( $z -eq \"hii\" ))\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
+-- "echo hi\ny=1\nif [ $y > \"hi\" ]\nthen\n  echo $x\nelse\n  echo \"hi\"\nfi\n"
 
 {- File parsers -}
 
@@ -199,6 +199,5 @@ parseFromFile parser filename = do
         str <- IO.hGetContents handle
         pure $ parse parser str
     )
-    ( \e ->
-        pure $ Left $ "Error:" ++ show e
+    ( pure . Left . show
     )

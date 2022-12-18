@@ -1,8 +1,9 @@
-$x=1
-y= 1
-if [ $y > '~' ]
+echo hi
+y=1
+x=(hi hello)
+if [ $y > 'hii' ]
 then
-  echo $x
+  echo "$x"
 else
   echo "hi"
 fi

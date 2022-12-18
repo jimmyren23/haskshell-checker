@@ -85,6 +85,7 @@ errorS m =
   case m of
     C.ErrorMessage s -> "<ERROR> " ++ s
     C.WarningMessage s -> "<WARNING> " ++ s
+    C.None -> empty
 
 
 -- | Shows the history and variable reference frequency
@@ -117,7 +118,7 @@ evalBashLine bc = do
               evalAllBashLines b2
               return bc
     _ ->
-      let res = C.checkExecCommandArgs bc oldHistory
+      let res = C.checkExecCommandArgs bc oldHistory `C.eitherOp` C.checkAssignmentExp bc oldHistory
        in case res of
             Left err -> throwError $ errorS err
             Right _ -> do

@@ -86,6 +86,7 @@ data Expression
   | Val Value -- literal values
   | Op1 Uop Expression -- unary operators
   | Op2 Expression Bop Expression -- binary operators
+  | Arr String
   deriving (Eq, Show)
 
 type Equal = String -- "=" for variable assignments
