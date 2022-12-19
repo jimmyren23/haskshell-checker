@@ -3,21 +3,24 @@
 module PrettyPrint where
 
 import ShellSyntax
-    ( Block(..),
-      Bop(..),
-      PossibleAssign(..),
-      Command(..),
-      Expression(..),
-      IfUop(..),
-      IfBop(..),
-      Value(..),
-      IfExpression(..),
-      BashCommand(..),
-      Var(..),
-      Arg(..),
-      Misc(..),
-      Uop(..),
-      ArgToken(..), Message (WarningMessage, ErrorMessage, None), PrintfToken (..) )
+  ( Arg (..),
+    ArgToken (..),
+    BashCommand (..),
+    Block (..),
+    Bop (..),
+    Command (..),
+    Expression (..),
+    IfBop (..),
+    IfExpression (..),
+    IfUop (..),
+    Message (ErrorMessage, None, WarningMessage),
+    Misc (..),
+    PossibleAssign (..),
+    PrintfToken (..),
+    Uop (..),
+    Value (..),
+    Var (..),
+  )
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Text.PrettyPrint (Doc, (<+>))
 import Text.PrettyPrint qualified as PP
@@ -78,7 +81,7 @@ instance PP IfUop where
   pp Modified = PP.text "-N"
   pp LengthZero = PP.text "-z"
   pp LengthNonZero = PP.text "-n"
-  pp Or = PP.text "-o" 
+  pp Or = PP.text "-o"
   pp ErrU = PP.text "<op>"
 
 instance PP Bool where
@@ -150,7 +153,7 @@ instance PP IfBop where
   pp ModuloIf = PP.text "%"
   pp Nt = PP.text "-nt"
   pp Ot = PP.text "-ot"
-  pp Ef = PP.text "-ef" 
+  pp Ef = PP.text "-ef"
   pp EqIf = PP.text "=="
   pp EqNIf = PP.text "-eq"
   pp EqS = PP.text "="
@@ -161,7 +164,7 @@ instance PP IfBop where
   pp LtIf = PP.text "<"
   pp LtNIf = PP.text "-lt"
   pp LeIf = PP.text "<="
-  pp LeNIf = PP.text "-le" 
+  pp LeNIf = PP.text "-le"
   pp Ne = PP.text "!="
   pp NeN = PP.text "-ne"
   pp AndIf = PP.text "&&"
@@ -187,7 +190,7 @@ instance PP IfExpression where
   pp (IfOp1 o v) = pp o <+> if ifIsBase v then pp v else PP.parens (pp v)
   pp e@IfOp2 {} = ppPrec e
     where
-      ppPrec (IfOp2 e1 bop e2) = pp e1 <+> pp bop <+> pp e2
+      ppPrec (IfOp2 e1 bop e2) = PP.parens (pp e1 <+> pp bop <+> pp e2)
       ppPrec e' = pp e'
   pp e@IfOp3 {} = ppPrec e
     where
@@ -250,4 +253,3 @@ test_prettyPrint =
 
 -- >>> PP.equals
 -- =
-

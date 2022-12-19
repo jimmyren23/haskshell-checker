@@ -135,6 +135,12 @@ choice = asum -- equivalent to: foldr (<|>) empty
 between :: Parser open -> Parser a -> Parser close -> Parser a
 between open p close = open *> p <* close
 
+parens :: Parser a -> Parser a
+parens x = between (stringP "(") x (stringP ")")
+
+doubleParens :: Parser a -> Parser a
+doubleParens x = between (stringP "((") x (stringP "))")
+
 -- | @sepBy p sep@ parses zero or more occurrences of @p@, separated by @sep@.
 --   Returns a list of values returned by @p@.
 sepBy :: Parser a -> Parser sep -> Parser [a]
