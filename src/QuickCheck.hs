@@ -141,8 +141,8 @@ qc = do
   QC.quickCheck prop_roundtrip_ifNonExp
   QC.quickCheck prop_roundtrip_ifExpP
 
--- QC.quickCheck prop_roundtrip_bash_command
--- QC.quickCheck prop_roundtrip_block
+  -- QC.quickCheck prop_roundtrip_bash_command
+  -- QC.quickCheck prop_roundtrip_block
 
 {- Arbitrary Instances -}
 

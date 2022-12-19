@@ -181,6 +181,17 @@ eof = P $ \s -> case s of
 -- >>> parse bashCommandP "echo \"hi\""
 -- Variable not in scope: bashCommandP :: Parser a
 
+try1 :: FilePath -> IO String
+try1 filename = do
+  handle <- IO.openFile filename IO.ReadMode
+  IO.hGetContents handle
+
+-- >>> parse (many get <* (string "\n") <* many get) "if \n"
+-- Left "err"
+
+-- >>> try1 "test/conditional.txt"
+-- "x=1\nif (( $z -eq \"hii\" ))\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
+
 {- File parsers -}
 
 parseFromFile :: Parser a -> String -> IO (Either String a)
