@@ -1,9 +1,10 @@
 module ShellParsing where
 
 import Control.Applicative
-    ( Applicative((<*), (*>), (<*>)),
-      (<$>),
-      Alternative(many, (<|>), some) )
+  ( Alternative (many, some, (<|>)),
+    Applicative ((*>), (<*), (<*>)),
+    (<$>),
+  )
 import Control.Monad (guard)
 import Data.Char
   ( Char,
@@ -13,52 +14,78 @@ import Data.Char
     isSpace,
     isUpper,
   )
-import Data.Foldable ( Foldable(elem, foldr), notElem )
+import Data.Foldable (Foldable (elem, foldr), notElem)
 import Data.Map ()
 import Parsing
-    ( parse,
-      Parser,
-      filter,
-      get,
-      satisfy,
-      alpha,
-      digit,
-      upper,
-      lower,
-      space,
-      char,
-      string,
-      int,
-      chainl1,
-      choice,
-      between,
-      wsP,
-      stringP,
-      constP,
-      errP,
-      eof,
-      parseFromFile )
+  ( Parser,
+    alpha,
+    between,
+    chainl1,
+    char,
+    choice,
+    constP,
+    digit,
+    eof,
+    errP,
+    filter,
+    get,
+    int,
+    lower,
+    parens,
+    parse,
+    parseFromFile,
+    satisfy,
+    space,
+    string,
+    stringP,
+    upper,
+    wsP,
+  )
 import ShellSyntax
-    (
-      Block(..),
-      Bop(..),
-      PossibleAssign(..),
-      Command(..),
-      Expression(..),
-      IfUop(Or, NotIf, AndU, BlockSpecial, CharSpecial, FolderExists,
-            FileOrFolderExists, FileExists, GroupId, Symlink, StickyBit, Pipe,
-            ReadPermission, FileSize, Socket, Terminal, UserId,
-            WritePermission, ExecPermission, Owner, GroupIdUser, Modified,
-            LengthZero, LengthNonZero),
-      IfBop(..),
-      Value(..),
-      IfExpression(..),
-      BashCommand(Conditional, Assign, PossibleAssign, ExecCommand),
-      Var(..),
-      Arg(..),
-      Uop(..),
-      PrintfToken(..),
-      regOps, ArgToken (ArgS, ArgM), Misc (Tilde, Esc), TokenS )
+  ( Arg (..),
+    ArgToken (ArgM, ArgS),
+    BashCommand (Assign, Conditional, ExecCommand, PossibleAssign),
+    Block (..),
+    Bop (..),
+    Command (..),
+    Expression (..),
+    IfBop (..),
+    IfExpression (..),
+    IfUop
+      ( AndU,
+        BlockSpecial,
+        CharSpecial,
+        ExecPermission,
+        FileExists,
+        FileOrFolderExists,
+        FileSize,
+        FolderExists,
+        GroupId,
+        GroupIdUser,
+        LengthNonZero,
+        LengthZero,
+        Modified,
+        NotIf,
+        Or,
+        Owner,
+        Pipe,
+        ReadPermission,
+        Socket,
+        StickyBit,
+        Symlink,
+        Terminal,
+        UserId,
+        WritePermission
+      ),
+    Misc (Esc, Tilde),
+    PossibleAssign (..),
+    PrintfToken (..),
+    TokenS,
+    Uop (..),
+    Value (..),
+    Var (..),
+    regOps,
+  )
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Prelude hiding (filter)
 
@@ -109,8 +136,8 @@ typeCounter = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
 
 -- | Counts the number of format specificators of the tokens inside a format of a printf
 numFormatSpecInTokens :: [ArgToken] -> Int
-numFormatSpecInTokens (x : xs) = 
-  case x of 
+numFormatSpecInTokens (x : xs) =
+  case x of
     ArgS s ->
       case parse printfP s of
         Left _ -> numFormatSpecInTokens xs
@@ -164,8 +191,7 @@ ifBopP =
       constP "-" MinusIf,
       constP "*" TimesIf,
       constP "//" DivideIf,
-      constP "%" ModuloIf,
-      errP Err
+      constP "%" ModuloIf
     ]
 
 -- | Parse an operator at a specified precedence level
@@ -276,17 +302,16 @@ expP = compP
 -- wordP :: Parser Value
 -- wordP = Word <$> wsP word
 
--- | Parses onditional expressions
+-- | Parses conditional expressions
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
   where
     bopexpP = uopexpP `chainl1` (flip IfOp2 <$> ifBopP)
-    uopexpP =
-      IfOp1 <$> ifUopP <*> uopexpP <|> baseP
-    baseP = IfVar <$> varP <|> IfVal <$> valueP
+    uopexpP = baseP <|> IfOp1 <$> ifUopP <*> uopexpP
+    baseP = IfVar <$> varP <|> parens ifExpP <|> IfVal <$> valueP
 
--- >>> parse ifBopP "-ew"
--- Left "ew"
+-- >>> parse ifExpP "-o"
+-- Left "\t<PARSING ERROR> No more characters to parse."
 
 -- | Parses array assignments in the form (...)
 arrAssignP :: Parser Expression
@@ -341,22 +366,21 @@ oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmeticOld
 
 -- >>> parse oldArithmeticExpansion "$[hi]"
 
-
 -- | Parses possible regex expressions based on common operators
 regex :: Parser String
 regex =
-   (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
-   <|> (many (satisfy (/= '^')) *> string "^" <* some get)
-   <|> (some (satisfy (/= '|')) *> string "|" <* some get)
-   <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
-   <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
-   <|> (many (satisfy (/= '*')) *> string "*" <* some get)
-   <|> (some (satisfy (/= '*')) *> string "*" <* many get)
-   <|> (many (satisfy (/= '/')) *> string "/" <* some get)
-  
+  (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
+    <|> (many (satisfy (/= '^')) *> string "^" <* some get)
+    <|> (some (satisfy (/= '|')) *> string "|" <* some get)
+    <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
+    <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
+    <|> (many (satisfy (/= '*')) *> string "*" <* some get)
+    <|> (some (satisfy (/= '*')) *> string "*" <* many get)
+    <|> (many (satisfy (/= '/')) *> string "/" <* some get)
+
 -- | Parses anything that's not an operator, quote, or space
 notQuoteOrSpaceP :: Parser Char
-notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c))
+notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c) && c /= ')')
 
 notQuoteOrSpaceOrNewLineP = satisfy (\c -> not (isSpace c) && c /= '\n')
 
@@ -459,7 +483,6 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
-
--- | Parses inputted file entirely 
+-- | Parses inputted file entirely
 parseShellScript :: String -> IO (Either String Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)

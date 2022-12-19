@@ -3,10 +3,10 @@ module ShellSyntax where
 import Control.Monad (liftM2, liftM3, liftM4, liftM5)
 import Data.Char
 import Data.Char qualified as Char
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Test.QuickCheck as QC
 import Text.PrettyPrint (Doc, (<+>))
-import Data.Map ( Map )
-import Data.Map qualified as Map
 
 -- | Overall representation of different types of commands supported
 data BashCommand
@@ -71,7 +71,7 @@ instance Arbitrary Arg where
 genWord :: Gen String
 genWord = elements tokenChars >>= \c -> QC.frequency [(50, return [c]), (1, QC.listOf (elements tokenChars) >>= \cs -> return (c : cs))]
   where
-    tokenChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && c /= '~' && not (isSpace c) && Char.isPrint c) ['\NUL' .. '~']
+    tokenChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && c /= '~' && c /= ')' && not (isSpace c) && Char.isPrint c) ['\NUL' .. '~']
 
 genToken :: Gen ArgToken
 genToken = QC.frequency [(80, ArgS <$> genWord), (1, possibleTokens)]
@@ -80,11 +80,11 @@ genToken = QC.frequency [(80, ArgS <$> genWord), (1, possibleTokens)]
 
 type TokenS = String
 
-data ArgToken 
+data ArgToken
   = ArgS String
   | ArgM Misc
   deriving (Eq, Show)
-  
+
 data Misc
   = Tilde -- ~
   | Esc -- \'
@@ -104,7 +104,7 @@ data IfExpression
 
 instance Arbitrary IfExpression where
   arbitrary :: Gen IfExpression
-  arbitrary = QC.frequency [(10, IfVar <$> arbitrary), (10, IfVal <$> arbitrary), (1, liftM2 IfOp1 arbitrary arbitrary), (0, liftM3 IfOp2 arbitrary arbitrary arbitrary), (0, liftM3 IfOp3 arbitrary arbitrary arbitrary)]
+  arbitrary = QC.frequency [(10, IfVar <$> arbitrary), (10, IfVal <$> arbitrary), (10, liftM2 IfOp1 arbitrary arbitrary), (1, liftM3 IfOp2 arbitrary arbitrary arbitrary), (0, liftM3 IfOp3 arbitrary arbitrary arbitrary)]
 
 -- >>> QC.sample' (arbitrary :: Gen IfExpression)
 -- [IfOp2 (IfOp2 (IfOp3 (IfVal (IntVal 0)) GeNIf (IfVal (StringVal ""))) DivideIf (IfOp3 (IfOp2 (IfVal (BoolVal False)) Ne (IfOp1 Socket (IfOp1 GroupIdUser (IfVar (V "\\"))))) Nt (IfOp3 (IfVar (V "Q")) GeNIf (IfOp1 FolderExists (IfOp3 (IfOp3 (IfVal (StringVal "")) Ot (IfOp2 (IfVar (V "l")) Err (IfVal (StringVal "")))) EqNIf (IfOp2 (IfVal (BoolVal False)) Nt (IfOp2 (IfOp3 (IfVal (BoolVal True)) LeNIf (IfVal (IntVal 0))) Ne (IfVar (V "%"))))))))) Ef (IfVar (V "C")),IfOp2 (IfVar (V "|")) GeNIf (IfVar (V "M")),IfOp2 (IfVar (V "9")) ModuloIf (IfOp3 (IfVal (IntVal (-4))) LeNIf (IfOp1 FileSize (IfVar (V "{")))),IfOp3 (IfVal (IntVal (-5))) Nt (IfOp1 UserId (IfVal (BoolVal False))),IfVal (BoolVal False),IfVar (V ","),IfOp3 (IfOp1 ExecPermission (IfVal (BoolVal True))) LeIf (IfVar (V "*")),IfOp1 FileOrFolderExists (IfVal (StringVal "&?[")),IfVal (IntVal 15),IfOp2 (IfOp3 (IfVar (V "T")) AndIf (IfVal (IntVal 4))) ModuloIf (IfOp2 (IfOp1 Owner (IfOp2 (IfOp1 LengthZero (IfOp1 GroupIdUser (IfVal (BoolVal False)))) LeNIf (IfOp1 GroupIdUser (IfOp1 LengthNonZero (IfVal (IntVal 2)))))) GeIf (IfVal (BoolVal False))),IfOp1 WritePermission (IfOp2 (IfVar (V "z")) LtIf (IfOp1 ExecPermission (IfVar (V "w"))))]
@@ -140,7 +140,7 @@ data IfBop
   deriving (Eq, Show, Enum, Bounded)
 
 instance Arbitrary IfBop where
-  arbitrary = elements [minBound .. maxBound]
+  arbitrary = elements (Prelude.filter (/= Err) [minBound .. maxBound])
 
 {- Assignment syntax -}
 
@@ -287,7 +287,8 @@ data IfUop
   deriving (Eq, Show, Enum, Bounded)
 
 instance Arbitrary IfUop where
-  arbitrary = elements [minBound .. maxBound]
+  arbitrary :: Gen IfUop
+  arbitrary = elements (filter (/= ErrU) [minBound .. maxBound])
 
 -- | List of unary operators for non-conditional expressions
 data Uop
