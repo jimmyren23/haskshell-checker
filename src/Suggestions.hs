@@ -134,8 +134,6 @@ evalAll bcs =
     & runIdentity
     & showEx (showSt toStringMessages)
 
--- >>> parseShellScript "test/conditional.txt"
-
 -- | Entrypoint to the checker
 evalScript :: String -> IO ()
 evalScript filename = do
