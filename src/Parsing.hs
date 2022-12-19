@@ -155,6 +155,9 @@ sepBy1 p sep = (:) <$> p <*> many (sep *> p)
 wsP :: Parser a -> Parser a
 wsP p = p <* many (space <|> newline)
 
+spaces :: Parser a -> Parser a
+spaces p = p <* many (satisfy (== ' '))
+
 stringP :: String -> Parser ()
 stringP s = wsP (string s) *> pure ()
 

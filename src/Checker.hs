@@ -1,29 +1,13 @@
 module Checker where
 
 import Control.Applicative (Alternative (..))
-import Data.Foldable ( Foldable(foldr) )
-import Data.Map ( Map )
+import Data.Foldable (Foldable (foldr))
+import Data.Map (Map)
 import Data.Map qualified as Map
-import Parsing ( parse, stringP )
+import Parsing (parse, stringP)
 import PrettyPrint (pretty)
 import ShellParsing qualified as S
 import ShellSyntax
-    ( numOps,
-      arithmeticOps,
-      Block(..),
-      Bop(And),
-      PossibleAssign(PossibleAssignWS),
-      Command(ExecName),
-      Expression(Var, Arr, Val),
-      IfUop(LengthNonZero, LengthZero),
-      IfBop(Err, Reg, AndIf),
-      Value(StringVal),
-      IfExpression(..),
-      BashCommand(..),
-      Var(..),
-      Arg(..),
-      Misc(Tilde),
-      ArgToken(..), TokenS, Message (None, WarningMessage, ErrorMessage) )
 import Test.HUnit.Lang (Result (Error))
 
 -- | Finds the first result with error
@@ -109,6 +93,17 @@ checkArgDoubleQuotes tokens@(t : ts) history cmd =
           tokenss <- checkArgDoubleQuotes ts history cmd
           return (tt : tokenss)
 checkArgDoubleQuotes [] _ _ = Right []
+
+-- >>> checkArg ([DoubleQuote [ArgS "$y"]]) Map.fromList [(V "y", (PossibleAssign (PossibleAssignWS (V "y") " " "=" "" (Val (IntVal 1)))))]  (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "$y"]])
+-- Couldn't match expected type: BashCommand -> t
+--             with actual type: Either Message [Arg]
+-- Couldn't match expected type: Map Var BashCommand
+--             with actual type: [(k0, a0)] -> Map k0 a0
+-- Couldn't match expected type ‘BashCommand’
+--             with actual type ‘[(Var, BashCommand)]’
+
+-- >>> checkArgDoubleQuotes [ArgS "a", ArgS "b", ArgS "c"] Map.empty (Assign (V "a") (Val (StringVal "b")))
+-- Right [ArgS "",ArgS "b",ArgS "c"]
 
 {- Conditionals [8] -}
 
@@ -372,11 +367,9 @@ checkPrintArgCount cmd _ = Right cmd
 --- >>> checkPrintArgCount (ExecCommand (ExecName "printf") [SingleQuote [ArgS "%s:",ArgS "%s\\n"]]) Map.empty
 -- Right (ExecCommand (ExecName "printf") [SingleQuote [ArgS "%s:",ArgS "%s\\n"]])
 
-
 -- | Checks if word boundaries are lost in array eval
 checkArrayEval :: BashCommand -> Either String BashCommand
 checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
-
 
 checkArrayValueUsedAsKey :: BashCommand -> Either String BashCommand
 checkArrayValueUsedAsKey = undefined
@@ -384,12 +377,12 @@ checkArrayValueUsedAsKey = undefined
 {- Robustness -}
 
 isTokenVar :: Map Var BashCommand -> ArgToken -> Bool
-isTokenVar history t = 
+isTokenVar history t =
   case t of
     ArgS ts ->
       case parse S.varP ts of
-      Left _ -> False
-      Right var -> Map.member var history
+        Left _ -> False
+        Right var -> Map.member var history
     _ -> False
 
 checkVarInPrintfArgs :: [Arg] -> Map Var BashCommand -> Either Message [Arg]
@@ -397,8 +390,8 @@ checkVarInPrintfArgs args history =
   case args of
     [] -> Right []
     [arg] -> case arg of
-        DoubleQuote tokens -> if any (isTokenVar history) tokens then Left (WarningMessage "Variables are not allowed in printf arguments") else Right [arg]
-        _ -> Right [arg]
+      DoubleQuote tokens -> if any (isTokenVar history) tokens then Left (WarningMessage "Variables are not allowed in printf arguments") else Right [arg]
+      _ -> Right [arg]
     (arg : as) ->
       case arg of
         DoubleQuote tokens -> if any (isTokenVar history) tokens then Left (WarningMessage "Variables are not allowed in printf arguments") else checkVarInPrintfArgs as history
@@ -406,40 +399,30 @@ checkVarInPrintfArgs args history =
 
 -- | Checks if variables are used in printf argument
 checkVarInPrintf :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkVarInPrintf cmd@(ExecCommand (ExecName cmdName) args) history = 
-  if cmdName == "printf" then 
-    case checkVarInPrintfArgs args history of
+checkVarInPrintf cmd@(ExecCommand (ExecName cmdName) args) history =
+  if cmdName == "printf"
+    then case checkVarInPrintfArgs args history of
       Left err -> Left err
       Right _ -> Right cmd
     else Right cmd
 checkVarInPrintf cmd _ = Right cmd
 
--- | Checks if variables are used in printf
-checkNoVariablesInPrintf :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkNoVariablesInPrintf (ExecCommand cmd@(ExecName cmdName) args) history =
-  if cmdName == "printf"
-    then
-      let res = checkArg args history (ExecCommand cmd args)
-       in case res of
-            Left err -> Left err
-            Right args -> Right (ExecCommand cmd args)
-    else Right (ExecCommand cmd args)
-checkNoVariablesInPrintf cmd history = Right cmd
-
 {- Miscellaneous -}
 
--- Warnings 
+-- Warnings
 
 -- | Checks if a variable is assigned to itself
 checkVariableAssignedToItself :: String -> Expression -> Either Message Expression
 checkVariableAssignedToItself varName exp@(Var (V s)) =
-    if s == varName then Left (WarningMessage $ "variable " ++ varName ++ " is assigned to itself - this does not do anything") else Right exp
+  if s == varName then Left (WarningMessage $ "variable " ++ varName ++ " is assigned to itself - this does not do anything") else Right exp
 checkVariableAssignedToItself _ exp = Right exp
-
 
 mapRight :: Either Message ArgToken -> Either Message [ArgToken]
 mapRight (Right x) = Right [x]
 mapRight (Left x) = Left x
+
+-- >>> checkArg ([DoubleQuote [ArgS "$y"]]) ( Map.fromList [(V "y", (PossibleAssign (PossibleAssignWS (V "y") " " "=" "" (Val (IntVal 1)))))]  ) (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "$y"]])
+-- Left (WarningMessage "Did you mean to assign variable y when you wrote: `$y =1`? It was used later in: `printf \"$y\"`")
 
 checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
 checkArg args@(x : xs) history cmd =
@@ -472,19 +455,19 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
 checkAssignmentExp :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkAssignmentExp cmd@(Assign (V var) exp) history  = 
-  let res = checkArrayAssignAsString exp `eitherOp` checkVariableAssignedToItself var exp  `eitherOp` checkCommaSeparatedArrays exp in
-    case res of
-      Left err -> Left err
-      Right _ -> Right cmd
+checkAssignmentExp cmd@(Assign (V var) exp) history =
+  let res = checkArrayAssignAsString exp `eitherOp` checkVariableAssignedToItself var exp `eitherOp` checkCommaSeparatedArrays exp
+   in case res of
+        Left err -> Left err
+        Right _ -> Right cmd
 checkAssignmentExp cmd _ = Right cmd
 
-{- 
+{-
   **
   Functions below run each checkers and stops immediately whenever an error encountered by a checker.
-    Otherwise, rest of the checkers will continued to be run and accumulate warnings to show after 
+    Otherwise, rest of the checkers will continued to be run and accumulate warnings to show after
     all checkers are run without any errors.
-  ** 
+  **
 -}
 
 argCheckers :: [Arg -> Either Message Arg]
@@ -498,15 +481,13 @@ ifCheckers = [checkConstantTestExpressions, checkLiteralVacuousTrue, checkQuoted
 
 bashCheckers :: [BashCommand -> Map Var BashCommand -> Either Message BashCommand]
 bashCheckers =
-  [ 
-    checkExecCommandArgs,
+  [ checkExecCommandArgs,
     checkAssignmentExp,
     checkRedirectInSudo,
     checkRedirectionInFind,
     checkArithmeticParentheses,
     checkNoVarInArithemetic,
     checkPrintArgCount,
-    checkNoVariablesInPrintf,
     checkVarInPrintf
   ]
 
@@ -519,7 +500,7 @@ ifAllChecker ifexpr history = Prelude.foldr (\x acc -> acc ++ ifChecker ifexpr x
         Right _ -> []
 
 getMessages :: Either Message a -> [Message] -> [Message]
-getMessages x acc = 
+getMessages x acc =
   case x of
     Left z -> z : acc
     Right _ -> acc
@@ -543,7 +524,6 @@ argAllCheckers args = Prelude.foldr (\x acc -> acc ++ argsChecker args x) []
         getMessages
         []
         (fmap checker args)
-
 
 bashAllChecker :: BashCommand -> Map Var BashCommand -> [BashCommand -> Map Var BashCommand -> Either Message BashCommand] -> [Message]
 bashAllChecker cmd history = Prelude.foldr (\x acc -> acc ++ bashChecker cmd x) []
@@ -572,7 +552,7 @@ allWarningMessages (x : xs) = case x of
   WarningMessage _ -> x : allWarningMessages xs
   _ -> allWarningMessages xs
 
-mainFold f cmd acc = 
+mainFold f cmd acc =
   case f cmd of
     Left m -> m : acc
     Right (_, m) -> m ++ acc
@@ -598,14 +578,14 @@ mainChecker history varFreq (Conditional ifExpr block1@(Block cmds1) block2@(Blo
    in case errorMessage of
         None -> Right (Conditional ifExpr block1 block2, allWarningMessages allMessages)
         _ -> Left errorMessage
-mainChecker history varFreq pa@(PossibleAssign (PossibleAssignWS var _ _ _ expr))=
+mainChecker history varFreq pa@(PossibleAssign (PossibleAssignWS var _ _ _ expr)) =
   let bashMessages = bashAllChecker pa history bashCheckers
       allMessages = bashMessages
       errorMessage = findErrorMessage allMessages
    in case errorMessage of
         None -> Right (pa, allWarningMessages allMessages)
         _ -> Left errorMessage
-mainChecker history varFreq command@(ExecCommand cmd args)  = do
+mainChecker history varFreq command@(ExecCommand cmd args) = do
   let argMessages = argAllCheckers args argCheckers
   let argHistMessages = argHistAllCheckers args history argHistCheckers
   let bashMessages = bashAllChecker command history bashCheckers ++ getMessages (checkUnusedVar command history varFreq) []

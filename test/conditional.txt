@@ -7,8 +7,8 @@ then
   then
     echo "hi"
   else
-    echo "hi" "hi"
+    echo "hi" "$y"
   fi
 else
-  printf "$x"
+  printf "$y"
 fi

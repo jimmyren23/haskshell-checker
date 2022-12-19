@@ -36,6 +36,7 @@ import Parsing
     parseFromFile,
     satisfy,
     space,
+    spaces,
     string,
     stringP,
     upper,
@@ -269,6 +270,11 @@ dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
 dqStringValErrP :: Parser [ArgToken]
 dqStringValErrP = between (char '\"') (many ((ArgM <$> errorStrParser) <|> (ArgS <$> (word <* many space)))) (char '\"')
 
+-- >>> parse dqStringValErrP "\"$y\""
+-- Right [ArgS "$y"]
+-- >>> parse bashCommandP "printf \"$y\""
+-- Right (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "$y"]])
+
 -- | Single quoted string - extracts out pure string only
 sqStringValP :: Parser String
 sqStringValP = between (char '\'') innerSq (wsP (char '\''))
@@ -380,7 +386,7 @@ regex =
 
 -- | Parses anything that's not an operator, quote, or space
 notQuoteOrSpaceP :: Parser Char
-notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c) && c /= ')')
+notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c) && c /= '\n' && c /= ')')
 
 notQuoteOrSpaceOrNewLineP = satisfy (\c -> not (isSpace c) && c /= '\n')
 
@@ -404,19 +410,22 @@ commandP = ExecName <$> wsP (filter isNotSpecial name)
 singleArgP :: Parser Arg
 singleArgP = Arg <$> word
 
+-- >>> parse (spaces singleArgP) "hi \n hello"
+-- Left "\n hello"
+
 -- | parses quoted string as an arg
 quotedArgP :: Parser Arg
 quotedArgP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
 
 -- | parses args
 argP :: Parser Arg
-argP = wsP (singleArgP <|> quotedArgP)
+argP = spaces (singleArgP <|> quotedArgP)
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
 
--- >>> parse execCommandP "echo \"hi\"\n"
--- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
+-- >>> parse execCommandP "echo \"hi\"\n\n\n if"
+-- Left " if"
 
 -- >>> parse execCommandP "ls -l -a w$few wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "w$few",Arg "wefjkl"])
