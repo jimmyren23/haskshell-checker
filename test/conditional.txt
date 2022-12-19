@@ -5,9 +5,9 @@ if [ $x > 'hii' ]
 then
   if [ $x > 'hii' ]
   then
-    echo "$y"
+    echo "hi"
   else
-    echo "$x"
+    echo "hi" "hi"
   fi
 else
   printf "$x"

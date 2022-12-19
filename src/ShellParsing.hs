@@ -386,7 +386,7 @@ quotedArgP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValE
 
 -- | parses args
 argP :: Parser Arg
-argP = singleArgP <|> quotedArgP
+argP = wsP (singleArgP <|> quotedArgP)
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
@@ -439,7 +439,7 @@ bashCommandP :: Parser BashCommand
 bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 
 -- >>> parse bashCommandP "echo \"~\""
--- Right (ExecCommand (ExecName "echo") [DoubleQuote ["<tilde>"]])
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote [ArgM Tilde]])
 
 -- >>> parse arithmeticExpansion "$((3 + 4))"
 -- Right "3 + 4"
@@ -447,8 +447,8 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- >>> parse bashCommandP "x=1\nif [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 -- Left "if [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 
--- >>> parse bashCommandP "x = 3"
--- Right (PossibleAssign (V "x") (Val (IntVal 3)))
+-- >>> parse bashCommandP "echo \"hi\" \"hi\""
+-- Left " \"hi\" "
 
 -- >>> parse bashCommandP "x=(hi, hi)"
 -- Right (Assign (V "x") (Arr "hi, hi"))

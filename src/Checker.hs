@@ -579,15 +579,13 @@ mainFold f cmd acc =
 
 -- Looks at different structures of bash command -> attempts to run checkers on it
 mainChecker :: Map Var BashCommand -> Map Var Int -> BashCommand -> Either Message (BashCommand, [Message])
-mainChecker history varFreq command@(ExecCommand cmd args)  = do
-  let argMessages = argAllCheckers args argCheckers
-  let argHistMessages = argHistAllCheckers args history argHistCheckers
-  let bashMessages = bashAllChecker command history bashCheckers ++ getMessages (checkUnusedVar command history varFreq) []
-  let allMessages = argMessages ++ bashMessages ++ argHistMessages
-  let errorMessage = findErrorMessage allMessages
-  case errorMessage of
-    None -> Right (ExecCommand cmd args, allWarningMessages allMessages)
-    _ -> Left errorMessage
+mainChecker history varFreq (Assign var expr) =
+  let bashMessages = bashAllChecker (Assign var expr) history bashCheckers
+      allMessages = bashMessages
+      errorMessage = findErrorMessage allMessages
+   in case errorMessage of
+        None -> Right (Assign var expr, allWarningMessages allMessages)
+        _ -> Left errorMessage
 mainChecker history varFreq (Conditional ifExpr block1@(Block cmds1) block2@(Block cmds2)) =
   let ifMessages = ifAllChecker ifExpr history ifCheckers ++ getMessages (checkVarInExp ifExpr history ifExpr) []
       block1Messages = foldr (mainFold (mainChecker history varFreq)) [] cmds1
@@ -600,13 +598,6 @@ mainChecker history varFreq (Conditional ifExpr block1@(Block cmds1) block2@(Blo
    in case errorMessage of
         None -> Right (Conditional ifExpr block1 block2, allWarningMessages allMessages)
         _ -> Left errorMessage
-mainChecker history varFreq (Assign var expr) =
-  let bashMessages = bashAllChecker (Assign var expr) history bashCheckers
-      allMessages = bashMessages
-      errorMessage = findErrorMessage allMessages
-   in case errorMessage of
-        None -> Right (Assign var expr, allWarningMessages allMessages)
-        _ -> Left errorMessage
 mainChecker history varFreq pa@(PossibleAssign (PossibleAssignWS var _ _ _ expr))=
   let bashMessages = bashAllChecker pa history bashCheckers
       allMessages = bashMessages
@@ -614,4 +605,13 @@ mainChecker history varFreq pa@(PossibleAssign (PossibleAssignWS var _ _ _ expr)
    in case errorMessage of
         None -> Right (pa, allWarningMessages allMessages)
         _ -> Left errorMessage
+mainChecker history varFreq command@(ExecCommand cmd args)  = do
+  let argMessages = argAllCheckers args argCheckers
+  let argHistMessages = argHistAllCheckers args history argHistCheckers
+  let bashMessages = bashAllChecker command history bashCheckers ++ getMessages (checkUnusedVar command history varFreq) []
+  let allMessages = argMessages ++ bashMessages ++ argHistMessages
+  let errorMessage = findErrorMessage allMessages
+  case errorMessage of
+    None -> Right (ExecCommand cmd args, allWarningMessages allMessages)
+    _ -> Left errorMessage
 mainChecker _ _ _ = Left (ErrorMessage "Error: This should not happen.")
