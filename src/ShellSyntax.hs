@@ -1,6 +1,6 @@
 module ShellSyntax where
 
-import Control.Monad (liftM2, liftM3)
+import Control.Monad (liftM2, liftM3, liftM4, liftM5)
 import Data.Char
 import Data.Char qualified as Char
 import Test.QuickCheck as QC
@@ -143,6 +143,22 @@ data PossibleAssign
   = PossibleAssignWS Var String Equal String Expression -- errors from extra spaces surrounding Equal("=") sign
   | PossibleAssignDS Var Equal Expression -- error from prefixing variable name with "$"
   deriving (Eq, Show)
+
+genSpaces :: Gen String
+genSpaces = QC.sized gen
+  where
+    gen :: Int -> Gen [Char]
+    gen n = QC.frequency [(1, return []), (n, liftM2 (:) (elements " ") (gen (n `div` 2)))]
+
+genEqual :: Gen String
+genEqual = QC.elements ["="]
+
+instance Arbitrary PossibleAssign where
+  arbitrary :: Gen PossibleAssign
+  arbitrary = QC.frequency [(1, liftM5 PossibleAssignWS arbitrary genSpaces genEqual genSpaces arbitrary), (1, liftM3 PossibleAssignDS arbitrary genEqual arbitrary)]
+
+-- >>> QC.sample' (arbitrary :: Gen PossibleAssign)
+-- [PossibleAssignDS (V "]") "=" (Val (BoolVal False)),PossibleAssignDS (V "V") "=" (Var (V "c")),PossibleAssignDS (V "p") "=" (Var (V "]")),PossibleAssignWS (V ";") "" "=" "  " (Var (V ",")),PossibleAssignDS (V ")") "=" (Var (V "D")),PossibleAssignWS (V "[") " " "=" "  " (Val (IntVal 1)),PossibleAssignWS (V "Y") "  " "=" "  " (Var (V "i")),PossibleAssignWS (V ">") "  " "=" "" (Val (StringVal "zrW-$")),PossibleAssignDS (V "Z") "=" (Var (V "o")),PossibleAssignWS (V "8") "   " "=" "  " (Val (IntVal 18)),PossibleAssignDS (V "k") "=" (Val (StringVal "5rm;M"))]
 
 -- | Representation of all expressions except conditional (see "IfExpression")
 data Expression
