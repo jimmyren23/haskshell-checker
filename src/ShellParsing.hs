@@ -1,6 +1,9 @@
 module ShellParsing where
 
 import Control.Applicative
+    ( Applicative((<*), (*>), (<*>)),
+      (<$>),
+      Alternative(many, (<|>), some) )
 import Control.Monad (guard)
 import Data.Char
   ( Char,
@@ -10,22 +13,64 @@ import Data.Char
     isSpace,
     isUpper,
   )
-import Data.Foldable
+import Data.Foldable ( Foldable(elem, foldr), notElem )
 import Data.Map ()
 import Parsing
+    ( parse,
+      Parser,
+      filter,
+      get,
+      satisfy,
+      alpha,
+      digit,
+      upper,
+      lower,
+      space,
+      char,
+      string,
+      int,
+      chainl1,
+      choice,
+      between,
+      wsP,
+      stringP,
+      constP,
+      errP,
+      eof,
+      parseFromFile )
 import ShellSyntax
+    (
+      Block(..),
+      Bop(..),
+      PossibleAssign(..),
+      Command(..),
+      Expression(..),
+      IfUop(Or, NotIf, AndU, BlockSpecial, CharSpecial, FolderExists,
+            FileOrFolderExists, FileExists, GroupId, Symlink, StickyBit, Pipe,
+            ReadPermission, FileSize, Socket, Terminal, UserId,
+            WritePermission, ExecPermission, Owner, GroupIdUser, Modified,
+            LengthZero, LengthNonZero),
+      IfBop(..),
+      Value(..),
+      IfExpression(..),
+      BashCommand(Conditional, Assign, PossibleAssign, ExecCommand),
+      Var(..),
+      Arg(..),
+      Uop(..),
+      PrintfToken(..),
+      regOps, ArgToken (ArgS, ArgM), Misc (Tilde, Esc), TokenS )
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Prelude hiding (filter)
 
--- Parses the first character of a name
+-- | Parses the first character of a name
 startOfName :: Parser Char
 startOfName = char '_' <|> alpha <|> lower <|> upper
 
--- Parses valid character from the rest of a name
+-- | Parses valid character from the rest of a name
 restOfName :: Parser Char
 restOfName = startOfName <|> digit
 
--- parses a name from a string
+-- | Parses a name from a string
 name :: Parser String
 name = (:) <$> startOfName <*> many restOfName
 
@@ -46,9 +91,15 @@ formatSpecP =
     <|> constP "%g" FormatG
     <|> constP "%a" FormatA
 
+<<<<<<< Updated upstream
 -- | Parser for all tokens in printf except format specificators
 printfTokenP :: Parser PrintfToken
 printfTokenP = Token <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
+=======
+-- | Parser for all tokens ixn printf except format specificators
+printfToken :: Parser PrintfToken
+printfToken = Token . ArgS <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
+>>>>>>> Stashed changes
 
 -- | Parser for printf
 printfP :: Parser [PrintfToken]
@@ -63,6 +114,7 @@ typeCounter :: [PrintfToken] -> Int
 typeCounter = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
 
 -- | Counts the number of format specificators of the tokens inside a format of a printf
+<<<<<<< Updated upstream
 numFormatSpecInTokens :: [Token] -> Int
 numFormatSpecInTokens (x : xs) = case parse printfP x of
   Left _ -> numFormatSpecInTokens xs
@@ -70,17 +122,19 @@ numFormatSpecInTokens (x : xs) = case parse printfP x of
     where
       helper = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
 numFormatSpecInTokens [] = 0
-
--- >>> parse printfParser "%s waejfklawjfe wefjklawfjl %s"
--- Right [FormatSpec,Token "waejfklawjfe wefjklawfjl ",FormatSpec]
-
--- >>> tokenPars ["%s awefjkwl", "%s", "wefjkwl %g"]
--- 3
-
--- >>> parse printfToken "eawjawefjklewkflw"
--- Right (Token "eawjawefjklewkflw")
--- >>> parse printfParser "%sewjfk%s"
--- Right [FormatSpec,Token "ewjfk",FormatSpec]
+=======
+tokenPars :: [ArgToken] -> Int
+tokenPars (x : xs) = 
+  case x of 
+    ArgS s ->
+      case parse printfParser s of
+        Left _ -> tokenPars xs
+        Right printfTokens -> helper printfTokens + tokenPars xs
+          where
+            helper = foldr (\x acc -> case x of FormatSpec -> acc + 1; _ -> acc) 0
+    ArgM _ -> tokenPars xs
+tokenPars [] = 0
+>>>>>>> Stashed changes
 
 -- | Parses binary operators for non-conditional expressions
 bopP :: Parser Bop
@@ -142,11 +196,14 @@ level Minus = 5
 level Concat = 4
 level _ = 3 -- comparison operators
 
+<<<<<<< Updated upstream
 uopP :: Parser Uop
 uopP =
   constP "-" Neg
     <|> constP "not" Not
 
+=======
+>>>>>>> Stashed changes
 -- | Parses unary operators
 ifUopP :: Parser IfUop
 ifUopP =
@@ -177,9 +234,6 @@ ifUopP =
       constP "-o" Or
     ]
 
--- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]"))) "if [ -as 2 ]"
--- Right (IfOp1 AndU (IfOp1 ErrU (IfVal (IntVal 2))))
-
 intValP = IntVal <$> wsP int
 
 boolValP :: Parser Value
@@ -188,14 +242,11 @@ boolValP = BoolVal <$> wsP (constP "true" True <|> constP "false" False)
 {- Parsers for quoted strings -}
 
 -- | Parses tokens that can't be used within strings
-errorStrParser :: Parser String
+errorStrParser :: Parser Misc
 errorStrParser =
-  -- constP "\'" "<singleQuote>" -- single quote
-  constP "\\'" "<escape>" <|> constP "~" "<tilde>"
+  constP "\\'" Esc <|> constP "~" Tilde
 
---
 -- Since ' can be used in double quoted string and vice versa, inner has to be defined separately
---
 innerDq :: Parser String
 innerDq = many (satisfy (/= '\"'))
 
@@ -210,18 +261,19 @@ dqStringValP :: Parser String
 dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
 
 -- | Double quoted string - parses tokens that aren't allowed as well
-dqStringValErrP :: Parser [Token]
-dqStringValErrP = between (char '\"') (many (errorStrParser <|> (word <* many space))) (char '\"')
+dqStringValErrP :: Parser [ArgToken]
+dqStringValErrP = between (char '\"') (many ((ArgM <$> errorStrParser) <|> (ArgS <$> (word <* many space)))) (char '\"')
 
 -- | Single quoted string - extracts out pure string only
 sqStringValP :: Parser String
 sqStringValP = between (char '\'') innerSq (wsP (char '\''))
 
--- | backticks
+-- | String surrounded by backticks
 backticksP :: Parser String
 backticksP = between (char '`') innerBacktick (wsP (char '`'))
 
 -- | Single quoted string - parses tokens that aren't allowed as well
+<<<<<<< Updated upstream
 sqStringValErrP :: Parser [Token]
 sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char '\'')
 
@@ -235,10 +287,15 @@ sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char
 -- No instance for (Show (String -> Either String Value))
 --   arising from a use of ‘evalPrint’
 --   (maybe you haven't applied a function to enough arguments?)
+=======
+sqStringValErrP :: Parser [ArgToken]
+sqStringValErrP = between (char '\'') (many ((ArgM <$> errorStrParser) <|> (ArgS <$> (word <* many space)))) (char '\'')
+>>>>>>> Stashed changes
 
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
+<<<<<<< Updated upstream
 -- wordP :: Parser Value
 -- wordP = Word <$> wsP (many (satisfy (/= ' ')) <* string " ")
 
@@ -246,29 +303,34 @@ stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 -- Left "[ParseError] Please check line:   $y\"   "
 
 -- | parses different values
+=======
+-- | Parses different types of values
+>>>>>>> Stashed changes
 valueP :: Parser Value
 valueP = intValP <|> boolValP <|> stringValP
 
--- | Parses a expressions
+-- | Parses non-cnditional expressions
 expP :: Parser Expression
 expP = compP
   where
     compP = catP `chainl1` opAtLevel (level Gt)
     catP = sumP `chainl1` opAtLevel (level Concat)
     sumP = prodP `chainl1` opAtLevel (level Plus)
+<<<<<<< Updated upstream
     prodP = uopexpP `chainl1` opAtLevel (level Times)
     uopexpP =
       baseP
         <|> Op1 <$> uopP <*> uopexpP
     baseP = Var <$> varP <|> Val <$> valueP
+=======
+    prodP = baseP `chainl1` opAtLevel (level Times)
+    baseP = Var <$> variableRef <|> Val <$> valueP
+>>>>>>> Stashed changes
 
-wordP :: Parser Value
-wordP = Word <$> wsP word
+-- wordP :: Parser Value
+-- wordP = Word <$> wsP word
 
--- >>> parse wordP "hi "
--- Right (Word "hi")
-
--- | Parses a conditional expression
+-- | Parses onditional expressions
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
   where
@@ -279,30 +341,20 @@ ifExpP = bopexpP
 
 -- >>> parse ifExpP "$y > hi"
 -- Left "> hi"
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 
 -- | Parses array assignments in the form (...)
 arrAssignP :: Parser Expression
 arrAssignP = Arr <$> wsP (between (string "(") (many (satisfy (/= ')'))) (string ")"))
 
--- >>> parse arrAssignP "(hi hello)"
--- Right (Arr "hi hello")
-
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
 assignP = (Assign . V <$> name) <*> (char '=' *> (arrAssignP <|> expP))
 
-test_assign :: Test
-test_assign =
-  TestList
-    [ parse assignP "hi=31" ~?= Right (Assign (V "hi") (Val (IntVal 31)))
-    ]
-
--- >>> runTestTT test_assign
--- Counts {cases = 1, tried = 1, errors = 0, failures = 0}
-
--- >>> parse expP "31"
--- Right (Val (IntVal 31))
-
+-- | Parses potential assignments with syntax issues
 possibleAssignP :: Parser BashCommand
 possibleAssignP = PossibleAssign <$> (wsAssignP <|> dsAssignP)
 
@@ -314,11 +366,28 @@ wsAssignP = PossibleAssignWS <$> (V <$> name) <*> many (char ' ') <*> string "="
 dsAssignP :: Parser PossibleAssign
 dsAssignP = PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
 
+<<<<<<< Updated upstream
 varP :: Parser Var
 varP = V <$> (char '$' *> wsP word)
+=======
+-- | Parses variable usages
+variableRef :: Parser Var
+variableRef = V <$> (char '$' *> wsP word)
+>>>>>>> Stashed changes
 
+-- | Parses variable usages as arguments
 argUnquotedVar :: Parser Arg
 argUnquotedVar = Arg <$> (char '$' *> wsP word)
+
+-- | Parses repeated pattern of non-space characters separated by comma
+commaInArr :: Parser String
+commaInArr = many (satisfy (/= ',')) <* stringP "," <* many (char ' ')
+
+-- | Parses out array elements separated by commas
+entireCommaInArr :: Parser [String]
+entireCommaInArr = some commaInArr <* many get
+
+{- Arithmetic parsers -}
 
 arithmeticInner :: Parser String
 arithmeticInner = many (satisfy (/= '$'))
@@ -326,14 +395,21 @@ arithmeticInner = many (satisfy (/= '$'))
 innerArithmetic :: Parser String
 innerArithmetic = many (satisfy (/= ')'))
 
+innerArithmeticOld = many (satisfy (/= ']'))
+
 arithmeticExpansion :: Parser String
 arithmeticExpansion = stringP "$" *> between (stringP "(") (between (stringP "(") innerArithmetic (stringP ")")) (stringP ")")
 
 oldArithmeticExpansion :: Parser String
-oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (stringP "]")
+oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmeticOld (stringP "]")
 
+-- >>> parse oldArithmeticExpansion "$[hi]"
+
+
+-- | Parses possible regex expressions based on common operators
 regex :: Parser String
 regex =
+<<<<<<< Updated upstream
   (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
     <|> (many (satisfy (/= '^')) *> string "^" <* some get)
     <|> (some (satisfy (/= '|')) *> string "|" <* some get)
@@ -357,6 +433,18 @@ regex =
 -- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 3))))
 
 -- | parses anything thats not an operator, quote, or space
+=======
+   (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
+   <|> (many (satisfy (/= '^')) *> string "^" <* some get)
+   <|> (some (satisfy (/= '|')) *> string "|" <* some get)
+   <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
+   <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
+   <|> (many (satisfy (/= '*')) *> string "*" <* some get)
+   <|> (some (satisfy (/= '*')) *> string "*" <* many get)
+   <|> (many (satisfy (/= '/')) *> string "/" <* some get)
+  
+-- | Parses anything that's not an operator, quote, or space
+>>>>>>> Stashed changes
 notQuoteOrSpaceP :: Parser Char
 notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c))
 
@@ -366,12 +454,23 @@ notQuoteOrSpaceOrNewLineP = satisfy (\c -> not (isSpace c) && c /= '\n')
 word :: Parser String
 word = (:) <$> notQuoteOrSpaceP <*> many notQuoteOrSpaceP
 
+<<<<<<< Updated upstream
 -- parses command name
+=======
+reserved :: [String]
+reserved = ["!", "fi", "then", "elif", "else", "if", "<tilde>", "escape>"]
+
+operators :: [String]
+operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
+
+-- | Parses command name
+>>>>>>> Stashed changes
 commandP :: Parser Command
 commandP = ExecName <$> wsP (filter isNotSpecial name)
   where
     isNotSpecial = not . (`elem` reserved ++ operators)
 
+<<<<<<< Updated upstream
 -- | parses single word as an arg
 singleArgP :: Parser Arg
 singleArgP = Arg <$> word
@@ -383,10 +482,20 @@ quotedArgP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValE
 -- | parses args
 argP :: Parser Arg
 argP = singleArgP <|> quotedArgP
+=======
+-- | Parses single word as an arg
+argP :: Parser Arg
+argP = Arg <$> word
+
+-- | Parses quoted string as an arg
+argsP :: Parser Arg
+argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
+>>>>>>> Stashed changes
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
 
+<<<<<<< Updated upstream
 -- >>> parse execCommandP "echo \"hi\"\n"
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
@@ -407,11 +516,18 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 
 ifNonExp :: Parser IfExpression
 ifNonExp = IfVar <$> varP <|> IfVal <$> valueP
+=======
+-- conditionalStrP :: Parser String
+-- conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
+
+-- | Parses if expression in arithmetic context
+ifNonExp :: Parser IfExpression
+ifNonExp = IfVar <$> variableRef <|> IfVal <$> valueP
+>>>>>>> Stashed changes
 
 -- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand
 conditionalP =
-  -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
   Conditional
     <$> ( (wsP (string "if [") *> ifExpP <* wsP (string "]"))
             <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]"))
@@ -420,6 +536,7 @@ conditionalP =
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
+<<<<<<< Updated upstream
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))) "if [ $y > hi ]\n"
 -- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
 
@@ -453,13 +570,20 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
 -- Left " -a awefew wefjkl"
 
+=======
+bashCommandP :: Parser BashCommand
+bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
+
+>>>>>>> Stashed changes
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
-{- Script parser -}
+
+-- | Parses inputted file entirely 
 parseShellScript :: String -> IO (Either String Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
 
+<<<<<<< Updated upstream
 word2 :: Parser String
 word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
 
@@ -501,3 +625,5 @@ p fn ast = do
   case result of
     (Left _) -> assert False
     (Right ast') -> assert (ast == ast')
+=======
+>>>>>>> Stashed changes

@@ -1,9 +1,14 @@
-echo 'hi'
-y=1
+y= 1
 x=(hi, hi)
+echo "~"
 if [ $y > 'hii' ]
 then
-  echo "$x"
+  if [ $y > 'hii' ]
+  then
+    echo '$y'
+  else
+    echo "$x"
+  fi
 else
-  echo "hi"
+  printf "$x"
 fi

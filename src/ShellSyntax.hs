@@ -5,18 +5,19 @@ import Data.Char
 import Data.Char qualified as Char
 import Test.QuickCheck as QC
 import Text.PrettyPrint (Doc, (<+>))
+import Data.Map ( Map )
+import Data.Map qualified as Map
 
 -- | Overall representation of different types of commands supported
 data BashCommand
   = ExecCommand Command [Arg] -- "basic" command in the form of a keyword followed by tokenized list of arguments
   | Conditional IfExpression Block Block -- conditional statements in the form of "if ... then .. else .. fi"
-  | PossibleConditional Expression Block Block -- potential conditional expressions with syntax errors
   | Assign Var Expression -- variable assignments in the form of "{var name}={value}"
   | PossibleAssign PossibleAssign -- potential assignment commands with syntax errors
   deriving (Eq, Show)
 
 instance Arbitrary BashCommand where
-  arbitrary = oneof [ExecCommand <$> arbitrary <*> arbitrary, Conditional <$> arbitrary <*> arbitrary <*> arbitrary, PossibleConditional <$> arbitrary <*> arbitrary <*> arbitrary, Assign <$> arbitrary <*> arbitrary]
+  arbitrary = oneof [ExecCommand <$> arbitrary <*> arbitrary, Conditional <$> arbitrary <*> arbitrary <*> arbitrary, Assign <$> arbitrary <*> arbitrary]
 
 {- ExecCommand syntax -}
 
@@ -57,8 +58,8 @@ instance Arbitrary Command where
 
 -- | Representation of arguments
 data Arg
-  = SingleQuote [Token] -- argument surrounded by single quotes
-  | DoubleQuote [Token] -- argument surrounded by double quotes
+  = SingleQuote [ArgToken] -- argument surrounded by single quotes
+  | DoubleQuote [ArgToken] -- argument surrounded by double quotes
   | Arg String -- "basic" argument : consecutive characters excluding space and quotes
   deriving (Eq, Show)
 
@@ -72,13 +73,18 @@ genWord = elements tokenChars >>= \c -> QC.frequency [(50, return [c]), (1, QC.l
   where
     tokenChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && c /= '~' && not (isSpace c) && Char.isPrint c) ['\NUL' .. '~']
 
-genToken :: Gen Token
-genToken = QC.frequency [(80, genWord), (1, possibleTokens)]
+genToken :: Gen ArgToken
+genToken = QC.frequency [(80, ArgS <$> genWord), (1, possibleTokens)]
   where
-    possibleTokens :: Gen Token = elements ["<escape>", "<tilde>"]
+    possibleTokens :: Gen ArgToken = elements [ArgM Esc, ArgM Tilde]
 
-type Token = String
+type TokenS = String
 
+data ArgToken 
+  = ArgS String
+  | ArgM Misc
+  deriving (Eq, Show)
+  
 data Misc
   = Tilde -- ~
   | Esc -- \'
@@ -235,6 +241,7 @@ instance Semigroup Block where
 instance Monoid Block where
   mempty = Block []
 
+-- | List of unary operators for conditional expressions
 data IfUop
   = NotIf -- `!` :: a -> Bool
   | AndU -- `-a` ::
@@ -253,7 +260,7 @@ data IfUop
   | Terminal -- `-t` :: a -> Bool
   | UserId -- `-u` :: a -> Bool
   | WritePermission -- `-w` :: a -> Bool
-  | ExecPermission -- `-e` :: a -> Bool
+  | ExecPermission -- `-x` :: a -> Bool
   | Owner -- `-O` :: a -> Bool
   | GroupIdUser -- `-G` :: a -> Bool
   | Modified -- `-N` :: a -> Bool
@@ -266,9 +273,9 @@ data IfUop
 instance Arbitrary IfUop where
   arbitrary = elements [minBound .. maxBound]
 
+-- | List of unary operators for non-conditional expressions
 data Uop
-  = Neg -- `-` :: Int -> Int
-  | Not -- `not` :: a -> Bool
+  = Not -- `!` :: a -> Bool
   deriving (Eq, Show, Enum, Bounded)
 
 instance Arbitrary Uop where
@@ -276,7 +283,7 @@ instance Arbitrary Uop where
 
 -- | Data types to represent the different types of tokens in a printf format
 data PrintfToken
-  = Token String
+  = Token ArgToken
   | FormatS
   | FormatD
   | FormatF
@@ -313,6 +320,17 @@ instance Arbitrary PrintfToken where
 -- >>> QC.sample' (arbitrary :: Gen PrintfToken)
 -- [FormatA,FormatS,FormatB,FormatE,Token "p",FormatB,Token "{",FormatE,FormatX,FormatX,FormatA]
 
+{- Checker data types -}
+-- Datatype to differentiate between messages
+data Message = WarningMessage String | ErrorMessage String | None
+  deriving (Show, Eq)
+
+-- History is a map of variables to the command assigned to it
+type History = Map Var BashCommand
+
+-- VarFrequency is a map of variables to the number of times they have been used
+type VarFrequency = Map Var Int
+
 -- | Common operators used in regex
 -- | Referenced: https://support.workiva.com/hc/en-us/articles/4407304269204-Regular-expression-operators
 regOps :: [Char]
@@ -322,5 +340,6 @@ regOps = ['^', '$', '.', '|', '(', '[', '{', '*', '+', '?', '/']
 numOps :: [IfBop]
 numOps = [GtNIf, LtNIf, EqNIf, GeNIf, LtNIf, LeNIf, NeN]
 
+-- | Operations for arithmetic statements
 arithmeticOps :: [IfBop]
 arithmeticOps = [PlusIf, MinusIf, TimesIf, DivideIf, ModuloIf]

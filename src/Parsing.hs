@@ -145,6 +145,7 @@ sepBy p sep = sepBy1 p sep <|> pure []
 sepBy1 :: Parser a -> Parser sep -> Parser [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)
 
+-- | Parses zero or more whitespaces after parsing with @p@
 wsP :: Parser a -> Parser a
 wsP p = p <* many (space <|> newline)
 

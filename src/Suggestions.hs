@@ -2,9 +2,8 @@
 
 module Suggestions where
 
-import Checker (Message)
 import Checker qualified as C
-import Control.Applicative
+import Control.Applicative ( Alternative(empty) )
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -22,11 +21,17 @@ import Data.Function ((&))
 import Data.Map (Map)
 import Data.Map qualified as Map
 import GHC.Base (undefined)
-import Parsing
-import ShellParsing as S
+import Parsing ()
+import ShellParsing as S ( parseShellScript )
 import ShellSyntax
+    ( Block(..),
+      PossibleAssign(PossibleAssignDS, PossibleAssignWS),
+      IfExpression(IfVar),
+      BashCommand(Conditional, PossibleAssign, Assign),
+      Var, Message (..) )
 import System.IO qualified as IO
 import System.IO.Error qualified as IO
+import PrettyPrint (pretty)
 
 data MyState = MyState
   { history :: Map Var BashCommand,
@@ -73,63 +78,61 @@ updateState bc = case bc of
     updateBlock block1
     updateBlock block2
     updateVarFrequency var
-  PossibleConditional (Var v) block1 block2 -> do
-    updateBlock block1
-    updateBlock block2
-    updateVarFrequency v
   _ ->
     return ()
 
 -- | displays the error message
-errorS :: C.Message -> String
+errorS :: Message -> String
 errorS m =
   case m of
-    C.ErrorMessage s -> "<ERROR> " ++ s
-    C.WarningMessage s -> "<WARNING> " ++ s
-    C.None -> empty
+    ErrorMessage s -> "<ERROR> " ++ s
+    WarningMessage s -> "<WARNING> " ++ s ++ "\n\t"
+    None -> empty
+
+toStringMessages :: (BashCommand, [Message]) -> String
+toStringMessages (bc, msgs) = foldr (\m acc -> errorS m ++ acc) "" msgs
 
 -- | Shows the history and variable reference frequency
-showSt :: (a -> String) -> (a, MyState) -> String
-showSt f (v, myState) = f v ++ ", history: " ++ show (history myState) ++ ", varFrequency: " ++ show (varFrequency myState)
+showSt :: ((BashCommand, [Message]) -> String) -> ((BashCommand, [Message]), MyState) -> String
+showSt f (v, myState) = f v
 
 -- | Show the result of runExceptT, parameterized by a function to show the value
-showEx :: (a -> String) -> Either String a -> String
+showEx :: (((BashCommand, [Message]), MyState) -> String) -> Either String ((BashCommand, [Message]), MyState) -> String
 showEx _ (Left m) = m
-showEx f (Right v) = "<SUCCESS> No issues detected ☺! \n\t<PARSED OUTPUT> " ++ f v
-
--- >>> showEx show (Left "Error")
--- "<Error>: Error"
--- >>> showEx show (Right 5)
--- "<Result>: 5"
+showEx f (Right v) = 
+  case v of
+    ((bc, []), _) -> "<SUCCESS> No issues detected ☺! \n\t"
+    _ -> f v
 
 -- | Evaluate a bashline
-evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> m (BashCommand, [Message])
-evalBashLine bc = do
+evalBashLine :: (MonadError String m, MonadState MyState m) => BashCommand -> [Message] -> m (BashCommand, [Message])
+evalBashLine bc msgs = do
   myState <- State.get
   let oldHistory = history myState
   let oldVarFrequency = varFrequency myState
-  case C.mainChecker bc oldHistory oldVarFrequency of
+  case C.mainChecker oldHistory oldVarFrequency bc of
     Left err -> throwError $ errorS err
     Right (_, messages) -> do
       updateState bc
-      return (bc, messages)
+      return (bc, msgs ++ messages)
 
 -- | Evaluate all bashlines
-evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> m (BashCommand, [Message])
-evalAllBashLines [x] = do
-  evalBashLine x
-evalAllBashLines (x : xs) = do
-  evalBashLine x
-  evalAllBashLines xs
-evalAllBashLines [] = undefined
+evalAllBashLines :: (MonadError String m, MonadState MyState m) => [BashCommand] -> [Message] -> m (BashCommand, [Message])
+evalAllBashLines [x] msgs = do
+  (bc, nMsgs) <- evalBashLine x msgs
+  return (bc, nMsgs)
+evalAllBashLines (x : xs) msgs = do
+  (bc, nMsgs) <- evalBashLine x msgs
+  evalAllBashLines xs nMsgs
+evalAllBashLines [] msgs = undefined
 
 evalAll :: [BashCommand] -> String
 evalAll bcs =
-  evalAllBashLines bcs
+  evalAllBashLines bcs []
     & flip runStateT (MyState {history = Map.empty, varFrequency = Map.empty})
     & runExceptT
     & runIdentity
-    & showEx (showSt show)
+    & showEx (showSt toStringMessages)
 
 -- | Entrypoint to the checker
 evalScript :: String -> IO ()
@@ -139,5 +142,3 @@ evalScript filename = do
     Left err -> putStrLn err
     Right (Block bcs) -> putStrLn ("\t" ++ evalAll bcs)
 
--- >>> show ((Assign (V "a") (Val (IntVal 5))), [C.WarningMessage "hi"])
--- "(Assign (V \"a\") (Val (IntVal 5)),[WarningMessage \"hi\"])"

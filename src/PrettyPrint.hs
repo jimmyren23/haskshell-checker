@@ -3,6 +3,21 @@
 module PrettyPrint where
 
 import ShellSyntax
+    ( Block(..),
+      Bop(..),
+      PossibleAssign(..),
+      Command(..),
+      Expression(..),
+      IfUop(..),
+      IfBop(..),
+      Value(..),
+      IfExpression(..),
+      BashCommand(..),
+      Var(..),
+      Arg(..),
+      Misc(..),
+      Uop(..),
+      ArgToken(..), Message (WarningMessage, ErrorMessage, None), PrintfToken (..) )
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
 import Text.PrettyPrint (Doc, (<+>))
 import Text.PrettyPrint qualified as PP
@@ -20,7 +35,7 @@ oneLine :: PP a => a -> String
 oneLine = PP.renderStyle (PP.style {PP.mode = PP.OneLineMode}) . pp
 
 instance PP PrintfToken where
-  pp (Token s) = PP.text s
+  pp (Token s) = pp s
   pp FormatS = PP.text "%s"
   pp FormatD = PP.text "%d"
   pp FormatF = PP.text "%f"
@@ -38,7 +53,6 @@ instance PP [PrintfToken] where
 
 instance PP Uop where
   pp Not = PP.text "not"
-  pp Neg = PP.text "-"
 
 instance PP IfUop where
   pp NotIf = PP.text "!"
@@ -64,8 +78,8 @@ instance PP IfUop where
   pp Modified = PP.text "-N"
   pp LengthZero = PP.text "-z"
   pp LengthNonZero = PP.text "-n"
-  pp Or = PP.text "-o"
-  pp ErrU = PP.text "Incorrect Token Used"
+  pp Or = PP.text "-o" 
+  pp ErrU = PP.text "<op>"
 
 instance PP Bool where
   pp True = PP.text "true"
@@ -87,6 +101,14 @@ instance PP Arg where
   pp (Arg arg) = PP.text arg
   pp (SingleQuote args) = PP.text "\'" <> PP.sep [pp arg | arg <- args] <> PP.text "\'"
   pp (DoubleQuote args) = PP.text "\"" <> PP.sep [pp arg | arg <- args] <> PP.text "\""
+
+instance PP ArgToken where
+  pp (ArgS s) = PP.text s
+  pp (ArgM m) = pp m
+
+instance PP Misc where
+  pp Tilde = PP.text "~"
+  pp Esc = PP.text "\\"
 
 instance PP Value where
   pp (IntVal i) = pp i
@@ -126,25 +148,25 @@ instance PP IfBop where
   pp TimesIf = PP.char '*'
   pp DivideIf = PP.text "//"
   pp ModuloIf = PP.text "%"
-  pp Nt = PP.text "-nt" -- -nt file operator checking if a file is newer than the other
-  pp Ot = PP.text "-ot" -- -ot file operator checking if a file is older than the other
-  pp Ef = PP.text "-ef" -- -ef checking if the two hard links are pointing the same file or not
-  pp EqIf = PP.text "==" -- `==`
-  pp EqNIf = PP.text "-eq" -- -eq numerical operator
-  pp EqS = PP.text "=" -- = `=` string operaor
-  pp GtIf = PP.text ">" -- `>`  :: a -> a -> Bool
-  pp GtNIf = PP.text "-gt" -- -gt
-  pp GeIf = PP.text ">=" -- `>=` :: a -> a -> Bool
-  pp GeNIf = PP.text "-ge" -- -ge
-  pp LtIf = PP.text "<" -- `<`  :: a -> a -> Bool
-  pp LtNIf = PP.text "-lt" -- -lt
-  pp LeIf = PP.text "<=" -- `<=` :: a -> a -> Bool
-  pp LeNIf = PP.text "-le" -- -le
-  pp Ne = PP.text "!=" -- !=
-  pp NeN = PP.text "-ne" -- -ne
-  pp AndIf = PP.text "&&" -- &&
-  pp Reg = PP.text "=~" -- =~
-  pp Err = PP.text "err"
+  pp Nt = PP.text "-nt"
+  pp Ot = PP.text "-ot"
+  pp Ef = PP.text "-ef" 
+  pp EqIf = PP.text "=="
+  pp EqNIf = PP.text "-eq"
+  pp EqS = PP.text "="
+  pp GtIf = PP.text ">"
+  pp GtNIf = PP.text "-gt"
+  pp GeIf = PP.text ">="
+  pp GeNIf = PP.text "-ge"
+  pp LtIf = PP.text "<"
+  pp LtNIf = PP.text "-lt"
+  pp LeIf = PP.text "<="
+  pp LeNIf = PP.text "-le" 
+  pp Ne = PP.text "!="
+  pp NeN = PP.text "-ne"
+  pp AndIf = PP.text "&&"
+  pp Reg = PP.text "=~"
+  pp Err = PP.text "<op>"
 
 instance PP Expression where
   pp (Var v) = pp v
@@ -157,6 +179,7 @@ instance PP Expression where
           ppPrec (level bop) e1 <+> pp bop <+> ppPrec (level bop + 1) e2
       ppPrec _ e' = pp e'
       ppParens b = if b then PP.parens else id
+  pp (Arr s) = PP.text "(" <> pp s <> PP.text ")"
 
 instance PP IfExpression where
   pp (IfVar v) = pp v
@@ -186,11 +209,16 @@ instance PP BashCommand where
   pp (Assign x e) = pp x <> PP.equals <> pp e
   pp (PossibleAssign pa) = pp pa
   -- TODO: update conditional
-  pp (Conditional guard b1 b2) =
-    PP.hang (PP.text "if" <+> pp guard <+> PP.text "then") 2 (pp b1)
+  pp (Conditional ifExp b1 b2) =
+    PP.hang (PP.text "if" <+> pp ifExp <+> PP.text "then") 2 (pp b1)
       PP.$$ PP.nest 2 (PP.text "else" PP.$$ pp b2)
-      PP.$$ PP.text "end"
+      PP.$$ PP.text "fi"
   pp (ExecCommand comm args) = pp comm <+> PP.sep [pp arg | arg <- args]
+
+instance PP Message where
+  pp (WarningMessage s) = pp s
+  pp (ErrorMessage s) = pp s
+  pp None = PP.text "none"
 
 level :: Bop -> Int
 level Times = 7
@@ -223,5 +251,3 @@ test_prettyPrint =
 -- >>> PP.equals
 -- =
 
--- >>> pp "hi" <+> pp "hello"
--- hi hello
