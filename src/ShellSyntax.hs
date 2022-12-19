@@ -16,8 +16,21 @@ data BashCommand
   | PossibleAssign PossibleAssign -- potential assignment commands with syntax errors
   deriving (Eq, Show)
 
+genArgs :: Gen [Arg]
+genArgs = QC.sized gen
+  where
+    gen 0 = return []
+    gen n = do
+      arg <- arbitrary
+      args <- gen (n `div` 2)
+      return (arg : args)
+
 instance Arbitrary BashCommand where
-  arbitrary = oneof [ExecCommand <$> arbitrary <*> arbitrary, Conditional <$> arbitrary <*> arbitrary <*> arbitrary, Assign <$> arbitrary <*> arbitrary]
+  arbitrary :: Gen BashCommand
+  arbitrary = oneof [Assign <$> arbitrary <*> arbitrary, PossibleAssign <$> arbitrary, ExecCommand <$> (ExecName <$> genName) <*> genArgs, Conditional <$> arbitrary <*> arbitrary <*> arbitrary]
+
+-- >>> QC.sample' (arbitrary :: Gen BashCommand)
+-- [ExecCommand (ExecName "T") [],ExecCommand (ExecName "hA") [Arg "*",Arg "|"],ExecCommand (ExecName "h8P") [Arg "c",Arg "M",Arg "8"],PossibleAssign (PossibleAssignDS (V "TpAWsM") "=" (Val (IntVal 6))),ExecCommand (ExecName "kUH0J") [Arg ",",Arg ";",Arg "7",Arg "."],ExecCommand (ExecName "soGOHi") [Arg "h",Arg "+",Arg "n",Arg "|"],PossibleAssign (PossibleAssignWS (V "JL3ZEPyljc") "     " "=" "     " (Val (BoolVal True))),PossibleAssign (PossibleAssignDS (V "Xd1uz") "=" (Val (StringVal ":Or,=.J8l}7T"))),ExecCommand (ExecName "A8mmy") [Arg "N",Arg "t",Arg "7",Arg "rD8]",Arg "w"],Assign (V "y9bJUEEmLfv8iByuXBw") (Val (StringVal "C;\\rJ")),PossibleAssign (PossibleAssignWS (V "_xonmqSsk03mw_g") "  " "=" "      " (Val (StringVal "Rmi*")))]
 
 {- ExecCommand syntax -}
 
@@ -63,9 +76,15 @@ data Arg
   | Arg String -- "basic" argument : consecutive characters excluding space and quotes
   deriving (Eq, Show)
 
+-- | Generates a word string
+genFirstArg :: Gen Arg
+genFirstArg = elements argChars >>= \c -> QC.frequency [(50, return (Arg [c])), (1, QC.listOf (elements argChars) >>= \cs -> return (Arg (c : cs)))]
+  where
+    argChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && c /= '~' && c /= ')' && c /= '=' && not (isSpace c) && Char.isPrint c) ['\NUL' .. '~']
+
 instance Arbitrary Arg where
   arbitrary :: Gen Arg
-  arbitrary = QC.frequency [(1, SingleQuote <$> QC.listOf genToken), (1, DoubleQuote <$> QC.listOf genToken), (100, Arg <$> genWord)]
+  arbitrary = QC.frequency [(1, SingleQuote <$> QC.listOf genToken), (1, DoubleQuote <$> QC.listOf genToken), (100, genFirstArg)]
 
 -- | Generates a word string
 genWord :: Gen String
@@ -154,7 +173,7 @@ genSpaces :: Gen String
 genSpaces = QC.sized gen
   where
     gen :: Int -> Gen [Char]
-    gen n = QC.frequency [(1, return []), (n, liftM2 (:) (elements " ") (gen (n `div` 2)))]
+    gen n = QC.frequency [(1, return " "), (n, liftM2 (:) (elements " ") (gen (n `div` 2)))]
 
 genEqual :: Gen String
 genEqual = QC.elements ["="]
@@ -204,7 +223,7 @@ newtype Var = V String
   deriving (Eq, Ord, Show)
 
 instance Arbitrary Var where
-  arbitrary = V <$> genWord
+  arbitrary = V <$> genName
 
 -- | Representation of different types of values
 data Value
@@ -248,8 +267,16 @@ instance Arbitrary Value where
 newtype Block = Block [BashCommand]
   deriving (Eq, Show)
 
+genBlock :: Gen Block
+genBlock = QC.sized gen
+  where
+    gen n = QC.frequency [(1, Block <$> vectorOf 1 arbitrary)]
+
 instance Arbitrary Block where
-  arbitrary = Block <$> QC.listOf arbitrary
+  arbitrary = genBlock
+
+-- >>> QC.sample' (arbitrary :: Gen Block)
+-- [Block [Assign (V "w") (Val (BoolVal False))],Block [ExecCommand (ExecName "i") [Arg "9",Arg "L"]],Block [PossibleAssign (PossibleAssignWS (V "p9lKo") "  " "=" "   " (Var (V "Ukxe")))],Block [ExecCommand (ExecName "ZoJd") [DoubleQuote [ArgS "V",ArgS "T",ArgS "e",ArgS "G",ArgS "b",ArgS "["],Arg "w",Arg "w"]],Block [ExecCommand (ExecName "IvaW2ZCp") [Arg "*",Arg "0",Arg "`",Arg "L"]],Block [PossibleAssign (PossibleAssignWS (V "dUpDn1V") "   " "=" "  " (Val (StringVal "WT")))],Block [Assign (V "pEPFDR5If") (Var (V "s9"))],Block [Assign (V "Yg") (Var (V "w"))],Block [ExecCommand (ExecName "dKt_R") [Arg "4",Arg "5",Arg "X",Arg "H",Arg "M"]],Block [ExecCommand (ExecName "PVLhzMQPEpeVQ_2Rej") [Arg "\\",Arg "_",DoubleQuote [ArgS "$",ArgS "3",ArgS "j",ArgS "n",ArgS ",",ArgS "|",ArgS "q",ArgS "W",ArgS "[",ArgS "L",ArgS "A",ArgS "N",ArgS "%",ArgS "0"],Arg "o",Arg "x"]],Block [ExecCommand (ExecName "YUYzCCyCtwJ64lJQPT") [DoubleQuote [ArgS "*",ArgS "c",ArgS "-"],Arg ",",Arg "`",Arg "s",Arg "|"]]]
 
 instance Semigroup Block where
   Block s1 <> Block s2 = Block (s1 <> s2)

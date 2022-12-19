@@ -11,7 +11,6 @@ import ShellParsing as SP
 import ShellSyntax as S
 import Test.QuickCheck (Arbitrary (..), Gen, Property, Testable (..), (==>))
 import Test.QuickCheck qualified as QC
-import Test.QuickCheck qualified as Qc
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Property (Prop)
 
@@ -130,7 +129,7 @@ qc = do
   QC.quickCheck prop_restOfName
   QC.quickCheck prop_nonPrintfArg
   QC.quickCheck prop_formatSpecP
-  QC.quickCheck prop_printfToken
+  -- QC.quickCheck prop_printfToken
   QC.quickCheck prop_typeCounter
   QC.quickCheck prop_roundtrip_bop
   QC.quickCheck prop_roundtrip_ifBop
@@ -141,9 +140,8 @@ qc = do
   QC.quickCheck prop_roundtrip_arg
   QC.quickCheck prop_roundtrip_ifNonExp
   QC.quickCheck prop_roundtrip_ifExpP
-
-  -- QC.quickCheck prop_roundtrip_bash_command
-  -- QC.quickCheck prop_roundtrip_block
+  QC.quickCheck prop_roundtrip_bash_command
+  QC.quickCheck prop_roundtrip_block
 
 {- Arbitrary Instances -}
 

@@ -95,23 +95,37 @@ instance PP Int where
   pp = PP.int
 
 instance PP Var where
-  pp (V var) = PP.text "$" <> PP.text var
+  pp (V var) = PP.text var
 
 instance PP Command where
   pp (ExecName comm) = PP.text comm
 
 instance PP Arg where
   pp (Arg arg) = PP.text arg
-  pp (SingleQuote args) = PP.text "\'" <> PP.sep [pp arg | arg <- args] <> PP.text "\'"
-  pp (DoubleQuote args) = PP.text "\"" <> PP.sep [pp arg | arg <- args] <> PP.text "\""
+  pp (SingleQuote args) = PP.text "\'" <> pp args <> PP.text "\'"
+  pp (DoubleQuote args) = PP.text "\"" <> pp args <> PP.text "\""
+
+instance PP [Arg] where
+  pp [] = PP.empty
+  pp [arg] = pp arg
+  pp (x : xs) = pp x <+> pp xs
+
+instance PP [ArgToken] where
+  pp [] = PP.empty
+  pp [arg] = pp arg
+  pp (x : xs) = pp x <+> pp xs
+
+-- >>> pp ([Arg "hello", Arg "world", SingleQuote [ArgS "hello", ArgS "world"], DoubleQuote [ArgS "hello", ArgS "world"]])
+-- hello world 'hello world' "hello world"
 
 instance PP ArgToken where
   pp (ArgS s) = PP.text s
   pp (ArgM m) = pp m
 
+-- >>> pp (ArgM (Misc ))
 instance PP Misc where
   pp Tilde = PP.text "~"
-  pp Esc = PP.text "\\"
+  pp Esc = PP.text "\\'"
 
 instance PP Value where
   pp (IntVal i) = pp i
@@ -172,7 +186,7 @@ instance PP IfBop where
   pp Err = PP.text "<op>"
 
 instance PP Expression where
-  pp (Var v) = pp v
+  pp (Var v) = PP.text "$" <> pp v
   pp (Val v) = pp v
   pp (Op1 o v) = pp o <+> if isBase v then pp v else PP.parens (pp v)
   pp e@Op2 {} = ppPrec 0 e
@@ -185,7 +199,7 @@ instance PP Expression where
   pp (Arr s) = PP.text "(" <> pp s <> PP.text ")"
 
 instance PP IfExpression where
-  pp (IfVar v) = pp v
+  pp (IfVar v) = PP.text "$" <> pp v
   pp (IfVal v) = pp v
   pp (IfOp1 o v) = pp o <+> if ifIsBase v then pp v else PP.parens (pp v)
   pp e@IfOp2 {} = ppPrec e
@@ -216,7 +230,7 @@ instance PP BashCommand where
     PP.hang (PP.text "if" <+> pp ifExp <+> PP.text "then") 2 (pp b1)
       PP.$$ PP.nest 2 (PP.text "else" PP.$$ pp b2)
       PP.$$ PP.text "fi"
-  pp (ExecCommand comm args) = pp comm <+> PP.sep [pp arg | arg <- args]
+  pp (ExecCommand comm args) = pp comm <+> pp args
 
 instance PP Message where
   pp (WarningMessage s) = pp s
@@ -234,16 +248,16 @@ level _ = 3 -- comparison operators
 test_prettyPrint :: Test
 test_prettyPrint =
   TestList
-    [ pretty (Assign (V "var1") (Val (StringVal "hi"))) ~?= "var1=\"hi\"",
+    [ pretty (Assign (V "var1") (Val (StringVal "hi"))) ~?= "var1=\'hi\'",
       -- pretty (PossibleAssign (V "var1") (Val (StringVal "hi"))) ~?= "var1 = \"hi\"",
       pretty (ExecCommand (ExecName "echo") [Arg "a", Arg "b", Arg "c"]) ~?= "echo a b c"
     ]
 
 -- >>> runTestTT test_prettyPrint
--- Counts {cases = 3, tried = 3, errors = 0, failures = 0}
+-- Counts {cases = 2, tried = 2, errors = 0, failures = 0}
 
--- >>> pretty (StringVal "hi")
--- "\"hi\""
+-- >>> pretty (Assign (V "var1") (Val (StringVal "hi")))
+-- "var1='hi'"
 
 -- >>> pretty (PossibleAssign (V "var1") (Val (StringVal "hi")))
 -- Couldn't match expected type ‘Expression -> a0’

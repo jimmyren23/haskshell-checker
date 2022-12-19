@@ -327,9 +327,14 @@ arrAssignP = Arr <$> wsP (between (string "(") (many (satisfy (/= ')'))) (string
 assignP :: Parser BashCommand
 assignP = (Assign . V <$> name) <*> (char '=' *> (arrAssignP <|> expP))
 
+-- >>> parse name "4"
+-- Left "\t<PARSING ERROR> No more characters to parse."
+
 -- | Parses potential assignments with syntax issues
 possibleAssignP :: Parser BashCommand
 possibleAssignP = PossibleAssign <$> (wsAssignP <|> dsAssignP)
+
+-- >>> parse possibleAssignP "T=0"
 
 -- | Parses var with whitespaces (retains them, too)
 wsAssignP :: Parser PossibleAssign
@@ -424,8 +429,8 @@ argP = spaces (singleArgP <|> quotedArgP)
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
 
--- >>> parse execCommandP "echo \"hi\"\n\n\n if"
--- Left " if"
+-- >>> parse execCommandP "echo \"hi\"\n\n\n"
+-- Right (ExecCommand (ExecName "echo") [DoubleQuote [ArgS "hi"]])
 
 -- >>> parse execCommandP "ls -l -a w$few wefjkl"
 -- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "w$few",Arg "wefjkl"])
@@ -480,8 +485,8 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- >>> parse bashCommandP "x=1\nif [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 -- Left "if [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 
--- >>> parse bashCommandP "echo \"hi\" \"hi\""
--- Left " \"hi\" "
+-- >>> parse bashCommandP "4=$7"
+-- Left "\t<PARSING ERROR> No more characters to parse."
 
 -- >>> parse bashCommandP "x=(hi, hi)"
 -- Right (Assign (V "x") (Arr "hi, hi"))
