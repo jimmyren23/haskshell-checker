@@ -1,5 +1,8 @@
 module ShellSyntax where
 
+import Data.Char
+import Data.Char qualified as Char
+import Test.QuickCheck as QC
 import Text.PrettyPrint (Doc, (<+>))
 
 -- | Overall representation of different types of commands supported
@@ -24,7 +27,7 @@ data Arg
   deriving (Eq, Show)
 
 type Token = String
-  
+
 data Misc
   = Tilde -- ~
   | Esc -- \'
@@ -72,6 +75,9 @@ data IfBop
   | Err -- Operators that are not allowed
   deriving (Eq, Show, Enum, Bounded)
 
+instance Arbitrary IfBop where
+  arbitrary = elements [minBound .. maxBound]
+
 {- Assignment syntax -}
 
 -- | Commands that could be intepreted as assignments
@@ -107,6 +113,9 @@ data Bop
   | Concat -- `..` :: String -> String -> String
   deriving (Eq, Show, Enum, Bounded)
 
+instance Arbitrary Bop where
+  arbitrary = elements [minBound .. maxBound]
+
 newtype Var = V String
   deriving (Eq, Ord, Show)
 
@@ -117,6 +126,44 @@ data Value
   | StringVal String -- "abd"
   | Word String
   deriving (Eq, Show, Ord)
+
+-- | Generate a string literal, being careful about the characters that it may contain
+genStringLit :: Gen String
+genStringLit = escape <$> QC.listOf (QC.elements stringLitChars)
+  where
+    -- escape special characters appearing in the string,
+    escape :: String -> String
+    escape = foldr Char.showLitChar ""
+    -- generate strings containing printable characters or spaces, but not including '\"'
+    stringLitChars :: [Char]
+    stringLitChars = Prelude.filter (\c -> c /= '\"' && c /= '\'' && (Char.isSpace c || Char.isPrint c)) ['\NUL' .. '~']
+
+shrinkStringLit :: String -> [String]
+shrinkStringLit s = filter (\c -> c /= '\"' && c /= '\'') <$> shrink s
+
+-- | Generate a word
+genWord :: Gen String
+genWord = suchThat arbitrary $ \s -> length s > 1 && '"' `notElem` s && '\'' `notElem` s && ' ' `notElem` s && '`' `notElem` s
+  where
+    -- generate strings containing printable characters or spaces, but not including '\"'
+    stringLitChars :: [Char]
+    stringLitChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && not (isSpace c) && c /= '`') ['\NUL' .. '~']
+
+shrinkWord :: String -> [String]
+shrinkWord s = filter (\c -> c /= '"' && c /= '\'') <$> shrink s
+
+instance Arbitrary Value where
+  arbitrary =
+    QC.oneof
+      [ IntVal <$> arbitrary,
+        BoolVal <$> arbitrary,
+        StringVal <$> genStringLit
+      ]
+
+  shrink (IntVal n) = IntVal <$> shrink n
+  shrink (BoolVal b) = BoolVal <$> shrink b
+  shrink (StringVal s) = StringVal <$> shrinkStringLit s
+  shrink (Word s) = []
 
 -- | Representation for a list of all commands
 newtype Block = Block [BashCommand]
@@ -156,14 +203,55 @@ data IfUop
   | ErrU
   deriving (Eq, Show, Enum, Bounded)
 
+instance Arbitrary IfUop where
+  arbitrary = elements [minBound .. maxBound]
+
 data Uop
   = Neg -- `-` :: Int -> Int
   | Not -- `not` :: a -> Bool
   deriving (Eq, Show, Enum, Bounded)
 
+instance Arbitrary Uop where
+  arbitrary = elements [minBound .. maxBound]
+
 -- | Data types to represent the different types of tokens in a printf format
-data PrintfToken = Token String | FormatSpec
+data PrintfToken
+  = Token String
+  | FormatS
+  | FormatD
+  | FormatF
+  | FormatB
+  | FormatX
+  | FormatO
+  | FormatE
+  | FormatG
+  | FormatA
   deriving (Show, Eq)
+
+genToken :: Gen String
+genToken = suchThat arbitrary $ \s -> not (null s) && '%' `notElem` s
+
+instance Arbitrary PrintfToken where
+  arbitrary :: Gen PrintfToken
+  arbitrary =
+    frequency
+      [ (20, Token <$> genToken),
+        (1, pure FormatS),
+        (1, pure FormatD),
+        (1, pure FormatF),
+        (1, pure FormatB),
+        (1, pure FormatX),
+        (1, pure FormatO),
+        (1, pure FormatE),
+        (1, pure FormatG),
+        (1, pure FormatA)
+      ]
+  shrink :: PrintfToken -> [PrintfToken]
+  shrink (Token s) = []
+  shrink _ = []
+
+-- >>> QC.sample' (arbitrary :: Gen PrintfToken)
+-- [FormatA,FormatS,FormatB,FormatE,Token "p",FormatB,Token "{",FormatE,FormatX,FormatX,FormatA]
 
 -- | Common operators used in regex
 -- | Referenced: https://support.workiva.com/hc/en-us/articles/4407304269204-Regular-expression-operators

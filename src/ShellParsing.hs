@@ -36,37 +36,40 @@ nonPrintFArg = many (satisfy (/= '%'))
 -- | Parser for format specificators in printf
 formatSpecP :: Parser PrintfToken
 formatSpecP =
-  constP "%s" FormatSpec
-    <|> constP "%d" FormatSpec
-    <|> constP "%f" FormatSpec
-    <|> constP "%c" FormatSpec
-    <|> constP "%b" FormatSpec
-    <|> constP "%x" FormatSpec
-    <|> constP "%o" FormatSpec
-    <|> constP "%e" FormatSpec
-    <|> constP "%g" FormatSpec
-    <|> constP "%a" FormatSpec
+  constP "%s" FormatS
+    <|> constP "%d" FormatD
+    <|> constP "%f" FormatF
+    <|> constP "%b" FormatB
+    <|> constP "%x" FormatX
+    <|> constP "%o" FormatO
+    <|> constP "%e" FormatE
+    <|> constP "%g" FormatG
+    <|> constP "%a" FormatA
 
 -- | Parser for all tokens in printf except format specificators
-printfToken :: Parser PrintfToken
-printfToken = Token <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
+printfTokenP :: Parser PrintfToken
+printfTokenP = Token <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
 
 -- | Parser for printf
-printfParser :: Parser [PrintfToken]
-printfParser = many (formatSpecP <|> printfToken)
+printfP :: Parser [PrintfToken]
+printfP = many (formatSpecP <|> printfTokenP)
+
+isFormat :: PrintfToken -> Bool
+isFormat (Token _) = False
+isFormat _ = True
 
 -- | Counts the number of format specificators in a printf
 typeCounter :: [PrintfToken] -> Int
-typeCounter = foldr (\x acc -> case x of FormatSpec -> acc + 1; _ -> acc) 0
+typeCounter = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
 
 -- | Counts the number of format specificators of the tokens inside a format of a printf
-tokenPars :: [Token] -> Int
-tokenPars (x : xs) = case parse printfParser x of
-  Left _ -> tokenPars xs
-  Right printfTokens -> helper printfTokens + tokenPars xs
+numFormatSpecInTokens :: [Token] -> Int
+numFormatSpecInTokens (x : xs) = case parse printfP x of
+  Left _ -> numFormatSpecInTokens xs
+  Right printfTokens -> helper printfTokens + numFormatSpecInTokens xs
     where
-      helper = foldr (\x acc -> case x of FormatSpec -> acc + 1; _ -> acc) 0
-tokenPars [] = 0
+      helper = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
+numFormatSpecInTokens [] = 0
 
 -- >>> parse printfParser "%s waejfklawjfe wefjklawfjl %s"
 -- Right [FormatSpec,Token "waejfklawjfe wefjklawfjl ",FormatSpec]
@@ -101,8 +104,7 @@ bopP =
 ifBopP :: Parser IfBop
 ifBopP =
   choice
-    [
-      constP "-nt" Nt,
+    [ constP "-nt" Nt,
       constP "-ot" Ot,
       constP "-ef" Ef,
       constP "-ge" GeNIf,
@@ -121,7 +123,7 @@ ifBopP =
       constP "=~" Reg,
       constP "=" EqS,
       constP "+" PlusIf,
-      constP " - " MinusIf,
+      constP "-" MinusIf,
       constP "*" TimesIf,
       constP "//" DivideIf,
       constP "%" ModuloIf,
@@ -141,38 +143,40 @@ level Concat = 4
 level _ = 3 -- comparison operators
 
 uopP :: Parser Uop
-uopP = constP "-" Neg
-  <|> constP "not" Not
+uopP =
+  constP "-" Neg
+    <|> constP "not" Not
 
 -- | Parses unary operators
 ifUopP :: Parser IfUop
 ifUopP =
-  choice [
-    constP "!" NotIf,
-    constP "-a" AndU,
-    constP "-b" BlockSpecial,
-    constP "-c" CharSpecial,
-    constP "-d" FolderExists,
-    constP "-e" FileOrFolderExists,
-    constP "-f" FileExists,
-    constP "-g" GroupId,
-    constP "-h" Symlink,
-    constP "-k" StickyBit,
-    constP "-p" Pipe,
-    constP "-r" ReadPermission,
-    constP "-s" FileSize,
-    constP "-S" Socket,
-    constP "-t" Terminal,
-    constP "-u" UserId,
-    constP "-w" WritePermission,
-    constP "-e" ExecPermission,
-    constP "-O" Owner,
-    constP "-G" GroupIdUser,
-    constP "-N" Modified,
-    constP "-z" LengthZero,
-    constP "-n" LengthNonZero,
-    constP "-o" Or
-  ]
+  choice
+    [ constP "!" NotIf,
+      constP "-a" AndU,
+      constP "-b" BlockSpecial,
+      constP "-c" CharSpecial,
+      constP "-d" FolderExists,
+      constP "-e" FileOrFolderExists,
+      constP "-f" FileExists,
+      constP "-g" GroupId,
+      constP "-h" Symlink,
+      constP "-k" StickyBit,
+      constP "-p" Pipe,
+      constP "-r" ReadPermission,
+      constP "-s" FileSize,
+      constP "-S" Socket,
+      constP "-t" Terminal,
+      constP "-u" UserId,
+      constP "-w" WritePermission,
+      constP "-x" ExecPermission,
+      constP "-O" Owner,
+      constP "-G" GroupIdUser,
+      constP "-N" Modified,
+      constP "-z" LengthZero,
+      constP "-n" LengthNonZero,
+      constP "-o" Or,
+      errP ErrU
+    ]
 
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]"))) "if [ -as 2 ]"
 -- Right (IfOp1 AndU (IfOp1 ErrU (IfVal (IntVal 2))))
@@ -228,9 +232,8 @@ sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char
 -- >>> parse dqStringValErrP "\"~\""
 -- Right ["<tilde>"]
 
--- >>> parse valueP 
+-- >>> parse valueP
 -- Left "  "
-
 
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
@@ -240,7 +243,6 @@ stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
 -- >>> parse conditionalP "if [[ hes -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"$y\"\nfi\n"
 -- Left "[ParseError] Please check line:   $y\"   "
-
 
 -- | parses different values
 valueP :: Parser Value
@@ -331,18 +333,17 @@ oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmetic (s
 
 regex :: Parser String
 regex =
-   (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
-   <|> (many (satisfy (/= '^')) *> string "^" <* some get)
-   <|> (some (satisfy (/= '|')) *> string "|" <* some get)
-   <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
-   <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
-   <|> (many (satisfy (/= '*')) *> string "*" <* some get)
-   <|> (some (satisfy (/= '*')) *> string "*" <* many get)
-   <|> (many (satisfy (/= '/')) *> string "/" <* some get)
+  (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
+    <|> (many (satisfy (/= '^')) *> string "^" <* some get)
+    <|> (some (satisfy (/= '|')) *> string "|" <* some get)
+    <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
+    <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
+    <|> (many (satisfy (/= '*')) *> string "*" <* some get)
+    <|> (some (satisfy (/= '*')) *> string "*" <* many get)
+    <|> (many (satisfy (/= '/')) *> string "/" <* some get)
 
 -- >>> parse regex "asdf(asdfad)asdf"
 -- Right "asdfad"
-
 
 -- >>> parse possibleAssignP "a =1"
 -- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
@@ -377,15 +378,19 @@ commandP = ExecName <$> wsP (filter isSpecial name)
     isSpecial = not . (`elem` reserved ++ operators)
 
 -- | parses single word as an arg
-argP :: Parser Arg
-argP = Arg <$> word
+singleArgP :: Parser Arg
+singleArgP = Arg <$> word
 
 -- | parses quoted string as an arg
-argsP :: Parser Arg
-argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
+quotedArgP :: Parser Arg
+quotedArgP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
+
+-- | parses args
+argP :: Parser Arg
+argP = singleArgP <|> quotedArgP
 
 execCommandP :: Parser BashCommand
-execCommandP = ExecCommand <$> commandP <*> many (argP <|> argsP) <* many (char '\n')
+execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
 
 -- >>> parse execCommandP "echo \"hi\"\n"
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
@@ -405,30 +410,27 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 -- >>> parse conditionalP "if [[ 'hi' -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 -- Left "[ParseError] Please check line:   hi\"   "
 
-
 ifNonExp :: Parser IfExpression
 ifNonExp = IfVar <$> variableRef <|> IfVal <$> valueP
-
 
 -- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand
 conditionalP =
   -- "if [y=1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
   Conditional
-    <$> ((wsP (string "if [") *> ifExpP <* wsP (string "]"))
-      <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]"))
-         <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))")))
+    <$> ( (wsP (string "if [") *> ifExpP <* wsP (string "]"))
+            <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]"))
+            <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))
+        )
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))) "if [ $y > hi ]\n"
 -- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
 
-
 -- parse error (possibly incorrect indentation or mismatched brackets)
 -- >>> parse conditionalP "if [ $y > hi ]\nthen\n  echo $x\nelse\n  echo \"hello\"\nfi\n"
 -- Left "[ParseError] Please check line:   hello\"   ."
-
 
 -- >>> parse bashCommandP "x=$xe"
 -- Right (Assign (V "x") (Var (V "xe")))
@@ -450,7 +452,6 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- >>> parse bashCommandP "x = 3"
 -- Right (PossibleAssign (V "x") (Val (IntVal 3)))
 
-
 -- >>> parse bashCommandP "x=(hi, hi)"
 -- Right (Assign (V "x") (Arr "hi, hi"))
 
@@ -471,7 +472,7 @@ commaInArr :: Parser String
 commaInArr = many (satisfy (/= ',')) <* stringP "," <* many (char ' ')
 
 entireCommaInArr :: Parser [String]
-entireCommaInArr = some commaInArr <* (many get)
+entireCommaInArr = some commaInArr <* many get
 
 -- >>> parse (some commaInArrParsing <* (many get)) "hello, hi hi"
 -- Right ["hello"]

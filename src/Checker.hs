@@ -405,11 +405,11 @@ checkExecCommandArgs command@(ExecCommand cmd (x : xs)) history = do
 checkExecCommandArgs cmd _ = Right cmd -- for other types like assignments, skip.
 
 checkAssignmentExp :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
-checkAssignmentExp cmd@(Assign (V var) exp) history  = 
-  let res = checkArrayAssignAsString exp `eitherOp` checkVariableAssignedToItself var exp  `eitherOp` checkCommaSeparatedArrays exp in
-    case res of
-      Left err -> Left err
-      Right _ -> Right cmd
+checkAssignmentExp cmd@(Assign (V var) exp) history =
+  let res = checkArrayAssignAsString exp `eitherOp` checkVariableAssignedToItself var exp `eitherOp` checkCommaSeparatedArrays exp
+   in case res of
+        Left err -> Left err
+        Right _ -> Right cmd
 checkAssignmentExp cmd _ = Right cmd
 
 -- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
@@ -429,7 +429,7 @@ checkPipingRead = undefined
 hasCorrectNumberPrintfArgs :: [Arg] -> Bool
 hasCorrectNumberPrintfArgs [] = True
 hasCorrectNumberPrintfArgs (x : xs) = case x of
-  DoubleQuote tokens -> length xs == S.tokenPars tokens
+  DoubleQuote tokens -> length xs == S.numFormatSpecInTokens tokens
   _ -> hasCorrectNumberPrintfArgs xs
 
 -- | Checks if argument count doesn't match in printf
@@ -483,11 +483,8 @@ checkNoVariablesInPrintf cmd history = Right cmd
 -- | Checks if a variable is assigned to itself
 checkVariableAssignedToItself :: String -> Expression -> Either Message Expression
 checkVariableAssignedToItself varName exp@(Var (V s)) =
-    if s == varName then Left (WarningMessage $ varName ++ " is assigned to itself - this does not do anything.") else Right exp
+  if s == varName then Left (WarningMessage $ varName ++ " is assigned to itself - this does not do anything.") else Right exp
 checkVariableAssignedToItself _ exp = Right exp
-
-
-
 
 argCheckers :: [Arg -> Map Var BashCommand -> Either Message Arg]
 argCheckers = [checkUnquotedVar, checkSingleQuoteApostrophe]

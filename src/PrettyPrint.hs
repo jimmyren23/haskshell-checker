@@ -19,17 +19,34 @@ pretty = PP.render . pp
 oneLine :: PP a => a -> String
 oneLine = PP.renderStyle (PP.style {PP.mode = PP.OneLineMode}) . pp
 
+instance PP PrintfToken where
+  pp (Token s) = PP.text s
+  pp FormatS = PP.text "%s"
+  pp FormatD = PP.text "%d"
+  pp FormatF = PP.text "%f"
+  pp FormatE = PP.text "%e"
+  pp FormatG = PP.text "%g"
+  pp FormatX = PP.text "%x"
+  pp FormatO = PP.text "%o"
+  pp FormatB = PP.text "%b"
+  pp FormatA = PP.text "%a"
+
+instance PP [PrintfToken] where
+  pp [] = PP.empty
+  pp [token] = pp token
+  pp (x : xs) = pp x <> pp xs
+
 instance PP Uop where
   pp Not = PP.text "not"
   pp Neg = PP.text "-"
 
 instance PP IfUop where
   pp NotIf = PP.text "!"
-  pp AndU = PP.text "-a" 
+  pp AndU = PP.text "-a"
   pp BlockSpecial = PP.text "-b"
   pp CharSpecial = PP.text "-c"
   pp FolderExists = PP.text "-d"
-  pp FileOrFolderExists = PP.text "-e" 
+  pp FileOrFolderExists = PP.text "-e"
   pp FileExists = PP.text "-f"
   pp GroupId = PP.text "-g"
   pp Symlink = PP.text "-h"
@@ -37,18 +54,18 @@ instance PP IfUop where
   pp Pipe = PP.text "-p"
   pp ReadPermission = PP.text "-r"
   pp FileSize = PP.text "-s"
-  pp Socket = PP.text "-S" 
+  pp Socket = PP.text "-S"
   pp Terminal = PP.text "-t"
   pp UserId = PP.text "-u"
   pp WritePermission = PP.text "-w"
-  pp ExecPermission = PP.text "-e"
+  pp ExecPermission = PP.text "-x"
   pp Owner = PP.text "-O"
-  pp GroupIdUser = PP.text "-G" 
+  pp GroupIdUser = PP.text "-G"
   pp Modified = PP.text "-N"
-  pp LengthZero = PP.text "-z" 
+  pp LengthZero = PP.text "-z"
   pp LengthNonZero = PP.text "-n"
-  pp Or = PP.text "-o" 
-  pp ErrU = PP.text "err"
+  pp Or = PP.text "-o"
+  pp ErrU = PP.text "Incorrect Token Used"
 
 instance PP Bool where
   pp True = PP.text "true"
@@ -75,6 +92,7 @@ instance PP Value where
   pp (IntVal i) = pp i
   pp (BoolVal b) = pp b
   pp (StringVal s) = PP.text ("'" <> s <> "'")
+  pp (Word v) = pp v
 
 isBase :: Expression -> Bool
 isBase Val {} = True
@@ -102,7 +120,6 @@ instance PP Bop where
   pp Concat = PP.text ".."
   pp And = PP.text "&&"
 
-
 instance PP IfBop where
   pp PlusIf = PP.char '+'
   pp MinusIf = PP.char '-'
@@ -112,18 +129,18 @@ instance PP IfBop where
   pp Nt = PP.text "-nt" -- -nt file operator checking if a file is newer than the other
   pp Ot = PP.text "-ot" -- -ot file operator checking if a file is older than the other
   pp Ef = PP.text "-ef" -- -ef checking if the two hard links are pointing the same file or not
-  pp EqIf = PP.text "==" -- `==` 
+  pp EqIf = PP.text "==" -- `==`
   pp EqNIf = PP.text "-eq" -- -eq numerical operator
   pp EqS = PP.text "=" -- = `=` string operaor
   pp GtIf = PP.text ">" -- `>`  :: a -> a -> Bool
   pp GtNIf = PP.text "-gt" -- -gt
-  pp GeIf = PP.text ">="-- `>=` :: a -> a -> Bool
+  pp GeIf = PP.text ">=" -- `>=` :: a -> a -> Bool
   pp GeNIf = PP.text "-ge" -- -ge
-  pp LtIf = PP.text "<"-- `<`  :: a -> a -> Bool
+  pp LtIf = PP.text "<" -- `<`  :: a -> a -> Bool
   pp LtNIf = PP.text "-lt" -- -lt
   pp LeIf = PP.text "<=" -- `<=` :: a -> a -> Bool
   pp LeNIf = PP.text "-le" -- -le
-  pp Ne = PP.text "!=" -- != 
+  pp Ne = PP.text "!=" -- !=
   pp NeN = PP.text "-ne" -- -ne
   pp AndIf = PP.text "&&" -- &&
   pp Reg = PP.text "=~" -- =~
@@ -155,8 +172,8 @@ instance PP Block where
   pp (Block ss) = PP.vcat (map pp ss)
 
 instance PP PossibleAssign where
-  pp (PossibleAssignDS var eq exp) = PP.text "$" <> pp var <> pp eq <>  pp exp
-  pp (PossibleAssignWS var sp1 eq sp2 exp) =  pp var <> pp sp1 <> pp eq <> pp sp2 <> pp exp
+  pp (PossibleAssignDS var eq exp) = PP.text "$" <> pp var <> pp eq <> pp exp
+  pp (PossibleAssignWS var sp1 eq sp2 exp) = pp var <> pp sp1 <> pp eq <> pp sp2 <> pp exp
 
 ppSS :: [BashCommand] -> Doc
 ppSS ss = PP.vcat (map pp ss)
@@ -192,7 +209,6 @@ test_prettyPrint =
 
 -- >>> pretty (StringVal "hi")
 -- "\"hi\""
-
 
 -- >>> pretty (PossibleAssign (V "var1") (Val (StringVal "hi")))
 -- Couldn't match expected type ‘Expression -> a0’
