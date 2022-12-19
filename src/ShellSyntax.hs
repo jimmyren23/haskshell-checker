@@ -1,5 +1,6 @@
 module ShellSyntax where
 
+import Control.Monad (liftM2, liftM3)
 import Data.Char
 import Data.Char qualified as Char
 import Test.QuickCheck as QC
@@ -19,12 +20,59 @@ data BashCommand
 newtype Command = ExecName String
   deriving (Eq, Show)
 
+reserved :: [String]
+reserved = ["!", "fi", "then", "elif", "else", "if"]
+
+operators :: [String]
+operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
+
+isStartOfName :: Char -> Bool
+isStartOfName c = isAlpha c || c == '_' && c /= '\1'
+
+isEndOfName :: Char -> Bool
+isEndOfName c = isStartOfName c || isDigit c
+
+isName :: String -> Bool
+isName (x : xs) =
+  isStartOfName x
+    && all isEndOfName xs
+    && (x : xs) `notElem` reserved
+    && (x : xs) `notElem` operators
+isName [] = False
+
+genName :: Gen String
+genName = elements stringCharsStart >>= \c -> QC.listOf (elements stringCharsEnd) >>= \cs -> return (c : cs)
+  where
+    stringCharsStart :: [Char]
+    stringCharsStart = Prelude.filter (\c -> isAlpha c || c == '_' && Char.isPrint c) ['\NUL' .. '~']
+    stringCharsEnd :: [Char]
+    stringCharsEnd = Prelude.filter (\c -> isAlphaNum c || c == '_' && Char.isPrint c) ['\NUL' .. '~']
+
+instance Arbitrary Command where
+  arbitrary :: Gen Command
+  arbitrary = ExecName <$> genName
+
 -- | Representation of arguments
 data Arg
   = SingleQuote [Token] -- argument surrounded by single quotes
   | DoubleQuote [Token] -- argument surrounded by double quotes
   | Arg String -- "basic" argument : consecutive characters excluding space and quotes
   deriving (Eq, Show)
+
+instance Arbitrary Arg where
+  arbitrary :: Gen Arg
+  arbitrary = QC.frequency [(1, SingleQuote <$> QC.listOf genToken), (1, DoubleQuote <$> QC.listOf genToken), (100, Arg <$> genWord)]
+
+-- | Generates a word string
+genWord :: Gen String
+genWord = elements tokenChars >>= \c -> QC.frequency [(50, return [c]), (1, QC.listOf (elements tokenChars) >>= \cs -> return (c : cs))]
+  where
+    tokenChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && c /= '~' && not (isSpace c) && Char.isPrint c) ['\NUL' .. '~']
+
+genToken :: Gen Token
+genToken = QC.frequency [(80, genWord), (1, possibleTokens)]
+  where
+    possibleTokens :: Gen Token = elements ["<escape>", "<tilde>"]
 
 type Token = String
 
@@ -44,6 +92,13 @@ data IfExpression
   | IfOp2 IfExpression IfBop IfExpression -- binary operators
   | IfOp3 IfExpression IfBop IfExpression -- arithmetic expression enclosed by ((...))
   deriving (Eq, Show)
+
+instance Arbitrary IfExpression where
+  arbitrary :: Gen IfExpression
+  arbitrary = QC.frequency [(1, IfVar <$> arbitrary), (1, IfVal <$> arbitrary), (1, liftM2 IfOp1 arbitrary arbitrary), (1, liftM3 IfOp2 arbitrary arbitrary arbitrary), (1, liftM3 IfOp3 arbitrary arbitrary arbitrary)]
+
+-- >>> QC.sample' (arbitrary :: Gen IfExpression)
+-- [IfOp2 (IfOp2 (IfOp3 (IfVal (IntVal 0)) GeNIf (IfVal (StringVal ""))) DivideIf (IfOp3 (IfOp2 (IfVal (BoolVal False)) Ne (IfOp1 Socket (IfOp1 GroupIdUser (IfVar (V "\\"))))) Nt (IfOp3 (IfVar (V "Q")) GeNIf (IfOp1 FolderExists (IfOp3 (IfOp3 (IfVal (StringVal "")) Ot (IfOp2 (IfVar (V "l")) Err (IfVal (StringVal "")))) EqNIf (IfOp2 (IfVal (BoolVal False)) Nt (IfOp2 (IfOp3 (IfVal (BoolVal True)) LeNIf (IfVal (IntVal 0))) Ne (IfVar (V "%"))))))))) Ef (IfVar (V "C")),IfOp2 (IfVar (V "|")) GeNIf (IfVar (V "M")),IfOp2 (IfVar (V "9")) ModuloIf (IfOp3 (IfVal (IntVal (-4))) LeNIf (IfOp1 FileSize (IfVar (V "{")))),IfOp3 (IfVal (IntVal (-5))) Nt (IfOp1 UserId (IfVal (BoolVal False))),IfVal (BoolVal False),IfVar (V ","),IfOp3 (IfOp1 ExecPermission (IfVal (BoolVal True))) LeIf (IfVar (V "*")),IfOp1 FileOrFolderExists (IfVal (StringVal "&?[")),IfVal (IntVal 15),IfOp2 (IfOp3 (IfVar (V "T")) AndIf (IfVal (IntVal 4))) ModuloIf (IfOp2 (IfOp1 Owner (IfOp2 (IfOp1 LengthZero (IfOp1 GroupIdUser (IfVal (BoolVal False)))) LeNIf (IfOp1 GroupIdUser (IfOp1 LengthNonZero (IfVal (IntVal 2)))))) GeIf (IfVal (BoolVal False))),IfOp1 WritePermission (IfOp2 (IfVar (V "z")) LtIf (IfOp1 ExecPermission (IfVar (V "w"))))]
 
 -- | List of binary operators permitted for bash conditional expressions
 -- | Note: This list may not be comprehensive of all permitted binary operators.
@@ -119,6 +174,9 @@ instance Arbitrary Bop where
 newtype Var = V String
   deriving (Eq, Ord, Show)
 
+instance Arbitrary Var where
+  arbitrary = V <$> genWord
+
 -- | Representation of different types of values
 data Value
   = IntVal Int -- 1
@@ -140,14 +198,6 @@ genStringLit = escape <$> QC.listOf (QC.elements stringLitChars)
 
 shrinkStringLit :: String -> [String]
 shrinkStringLit s = filter (\c -> c /= '\"' && c /= '\'') <$> shrink s
-
--- | Generate a word
-genWord :: Gen String
-genWord = suchThat arbitrary $ \s -> length s > 1 && '"' `notElem` s && '\'' `notElem` s && ' ' `notElem` s && '`' `notElem` s
-  where
-    -- generate strings containing printable characters or spaces, but not including '\"'
-    stringLitChars :: [Char]
-    stringLitChars = Prelude.filter (\c -> c /= '"' && c /= '\'' && not (isSpace c) && c /= '`') ['\NUL' .. '~']
 
 shrinkWord :: String -> [String]
 shrinkWord s = filter (\c -> c /= '"' && c /= '\'') <$> shrink s
@@ -228,8 +278,8 @@ data PrintfToken
   | FormatA
   deriving (Show, Eq)
 
-genToken :: Gen String
-genToken = suchThat arbitrary $ \s -> not (null s) && '%' `notElem` s
+genPrintFToken :: Gen String
+genPrintFToken = suchThat arbitrary $ \s -> not (null s) && '%' `notElem` s
 
 instance Arbitrary PrintfToken where
   arbitrary :: Gen PrintfToken

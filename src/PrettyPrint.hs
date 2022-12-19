@@ -78,7 +78,7 @@ instance PP Int where
   pp = PP.int
 
 instance PP Var where
-  pp (V var) = PP.text var
+  pp (V var) = PP.text "$" <> PP.text var
 
 instance PP Command where
   pp (ExecName comm) = PP.text comm
@@ -165,6 +165,10 @@ instance PP IfExpression where
   pp e@IfOp2 {} = ppPrec e
     where
       ppPrec (IfOp2 e1 bop e2) = pp e1 <+> pp bop <+> pp e2
+      ppPrec e' = pp e'
+  pp e@IfOp3 {} = ppPrec e
+    where
+      ppPrec (IfOp3 e1 bop e2) = PP.text "((" <+> pp e1 <+> pp bop <+> pp e2 <+> PP.text "))"
       ppPrec e' = pp e'
 
 instance PP Block where

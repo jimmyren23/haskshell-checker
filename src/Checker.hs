@@ -72,7 +72,7 @@ checkQuotedTildeExpansionTokens token =
 -- | Checks if token could be a variable, considering if its in its history
 possVariableRefToken :: Token -> Map Var BashCommand -> Bool
 possVariableRefToken t history =
-  let res = parse S.variableRef t
+  let res = parse S.varP t
    in case res of
         Left _ -> False
         Right var -> Map.member var history
@@ -329,7 +329,7 @@ checkUnusedVar cmd _ _ = Right cmd
 -- | Checks if variables are used in single quotes
 checkVarInSingleQuotes :: Token -> Either Message [Token]
 checkVarInSingleQuotes t =
-  case parse S.variableRef t of
+  case parse S.varP t of
     Left error -> Right [t]
     Right _ -> Left (WarningMessage "Variables cannot be used inside single quotes.")
 
@@ -354,7 +354,7 @@ checkArgSingleQuotes [] _ = Right []
 
 checkVarInDoubleQuotes :: Token -> Map Var BashCommand -> BashCommand -> Either Message Token
 checkVarInDoubleQuotes t history cmd =
-  case parse S.variableRef t of
+  case parse S.varP t of
     Left error -> Right t
     Right var ->
       let V possVar = var
@@ -378,7 +378,7 @@ checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
 checkArg args@(x : xs) history cmd =
   case x of
     Arg a ->
-      case parse S.variableRef a of
+      case parse S.varP a of
         Left error -> Right args
         Right var ->
           let V possVar = var
@@ -453,7 +453,7 @@ checkArrayValueUsedAsKey = undefined
 {- Robustness -}
 
 isTokenVar :: Map Var BashCommand -> Token -> Bool
-isTokenVar history t = case parse S.variableRef t of
+isTokenVar history t = case parse S.varP t of
   Left _ -> False
   Right var -> Map.member var history
 

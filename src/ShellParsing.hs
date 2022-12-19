@@ -174,8 +174,7 @@ ifUopP =
       constP "-N" Modified,
       constP "-z" LengthZero,
       constP "-n" LengthNonZero,
-      constP "-o" Or,
-      errP ErrU
+      constP "-o" Or
     ]
 
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]"))) "if [ -as 2 ]"
@@ -229,11 +228,13 @@ sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char
 -- >>> parse backticksP "`waefjk~jkw!@#$`"
 -- Right "waefjk~jkw!@#$"
 
--- >>> parse dqStringValErrP "\"~\""
--- Right ["<tilde>"]
+-- >>> parse dqStringValErrP "\"efjkelw~\""
+-- Right ["efjkelw~"]
 
 -- >>> parse valueP
--- Left "  "
+-- No instance for (Show (String -> Either String Value))
+--   arising from a use of ‘evalPrint’
+--   (maybe you haven't applied a function to enough arguments?)
 
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
@@ -259,7 +260,7 @@ expP = compP
     uopexpP =
       baseP
         <|> Op1 <$> uopP <*> uopexpP
-    baseP = Var <$> variableRef <|> Val <$> valueP
+    baseP = Var <$> varP <|> Val <$> valueP
 
 wordP :: Parser Value
 wordP = Word <$> wsP word
@@ -274,10 +275,10 @@ ifExpP = bopexpP
     bopexpP = uopexpP `chainl1` (flip IfOp2 <$> ifBopP)
     uopexpP =
       IfOp1 <$> ifUopP <*> uopexpP <|> baseP
-    baseP = IfVar <$> variableRef <|> IfVal <$> valueP
+    baseP = IfVar <$> varP <|> IfVal <$> valueP
 
 -- >>> parse ifExpP "$y > hi"
--- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
+-- Left "> hi"
 
 -- | Parses array assignments in the form (...)
 arrAssignP :: Parser Expression
@@ -313,8 +314,8 @@ wsAssignP = PossibleAssignWS <$> (V <$> name) <*> many (char ' ') <*> string "="
 dsAssignP :: Parser PossibleAssign
 dsAssignP = PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
 
-variableRef :: Parser Var
-variableRef = V <$> (char '$' *> wsP word)
+varP :: Parser Var
+varP = V <$> (char '$' *> wsP word)
 
 argUnquotedVar :: Parser Arg
 argUnquotedVar = Arg <$> (char '$' *> wsP word)
@@ -365,17 +366,11 @@ notQuoteOrSpaceOrNewLineP = satisfy (\c -> not (isSpace c) && c /= '\n')
 word :: Parser String
 word = (:) <$> notQuoteOrSpaceP <*> many notQuoteOrSpaceP
 
-reserved :: [String]
-reserved = ["!", "fi", "then", "elif", "else", "if"]
-
-operators :: [String]
-operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
-
 -- parses command name
 commandP :: Parser Command
-commandP = ExecName <$> wsP (filter isSpecial name)
+commandP = ExecName <$> wsP (filter isNotSpecial name)
   where
-    isSpecial = not . (`elem` reserved ++ operators)
+    isNotSpecial = not . (`elem` reserved ++ operators)
 
 -- | parses single word as an arg
 singleArgP :: Parser Arg
@@ -411,7 +406,7 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 -- Left "[ParseError] Please check line:   hi\"   "
 
 ifNonExp :: Parser IfExpression
-ifNonExp = IfVar <$> variableRef <|> IfVal <$> valueP
+ifNonExp = IfVar <$> varP <|> IfVal <$> valueP
 
 -- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand

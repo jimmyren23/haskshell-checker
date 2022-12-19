@@ -11,6 +11,7 @@ import ShellParsing as SP
 import ShellSyntax as S
 import Test.QuickCheck (Arbitrary (..), Gen, Property, Testable (..), (==>))
 import Test.QuickCheck qualified as QC
+import Test.QuickCheck qualified as Qc
 import Test.QuickCheck.Gen
 import Test.QuickCheck.Property (Prop)
 
@@ -85,17 +86,30 @@ prop_roundtrip_value v =
     isWord (Word _) = True
     isWord _ = False
 
+prop_roundtrip_var :: Var -> Bool
+prop_roundtrip_var v = P.parse SP.varP (pretty v) == Right v
+
 prop_roundtrip_command :: Command -> Bool
 prop_roundtrip_command c = P.parse SP.commandP (pretty c) == Right c
 
 prop_roundtrip_arg :: Arg -> Bool
 prop_roundtrip_arg a = P.parse SP.argP (pretty a) == Right a
 
+isNonExp :: IfExpression -> Bool
+isNonExp (IfVar _) = True
+isNonExp (IfVal _) = True
+isNonExp _ = False
+
+prop_roundtrip_ifNonExp :: IfExpression -> Property
+prop_roundtrip_ifNonExp ie = isNonExp ie ==> P.parse SP.ifNonExp (pretty ie) == Right ie
+
+prop_roundtrip_ifExpP :: IfExpression -> Property
+prop_roundtrip_ifExpP ie = not (isNonExp ie) ==> P.parse SP.ifExpP (pretty ie) == Right ie
+
+-- >>> P.parse SP.ifExpP (pretty (IfOp1 FileSize (IfVar (V "v"))))
+
 prop_roundtrip_bash_command :: BashCommand -> Bool
 prop_roundtrip_bash_command bc = P.parse SP.bashCommandP (pretty bc) == Right bc
-
-prop_roundtrip_IfExpression :: IfExpression -> Bool
-prop_roundtrip_IfExpression ie = P.parse SP.ifNonExp (pretty ie) == Right ie
 
 prop_roundtrip_block :: Block -> Bool
 prop_roundtrip_block b = P.parse SP.blockP (pretty b) == Right b
@@ -122,11 +136,20 @@ qc = do
   QC.quickCheck prop_roundtrip_uop
   QC.quickCheck prop_roundtrip_ifUop
   QC.quickCheck prop_roundtrip_value
+  QC.quickCheck prop_roundtrip_command
+  QC.quickCheck prop_roundtrip_arg
+  QC.quickCheck prop_roundtrip_ifNonExp
+  QC.quickCheck prop_roundtrip_ifExpP
 
--- QC.quickCheck prop_roundtrip_command
--- QC.quickCheck prop_roundtrip_arg
 -- QC.quickCheck prop_roundtrip_bash_command
--- QC.quickCheck prop_roundtrip_IfExpression
 -- QC.quickCheck prop_roundtrip_block
 
 {- Arbitrary Instances -}
+
+-- data IfExpression
+--   = IfVar Var -- global variables
+--   | IfVal Value -- literal values
+--   | IfOp1 IfUop IfExpression -- unary operators
+--   | IfOp2 IfExpression IfBop IfExpression -- binary operators
+--   | IfOp3 IfExpression IfBop IfExpression -- arithmetic expression enclosed by ((...))
+--   deriving (Eq, Show)
