@@ -58,10 +58,6 @@ prop_formatSpecP :: PrintfToken -> Property
 prop_formatSpecP pfToken =
   isFormat pfToken ==> P.parse SP.formatSpecP (pretty pfToken) == Right pfToken
 
-prop_printfToken :: PrintfToken -> Property
-prop_printfToken pfToken =
-  not (isFormat pfToken) ==> P.parse SP.printfTokenP (pretty pfToken) == Right pfToken
-
 prop_typeCounter :: [PrintfToken] -> Bool
 prop_typeCounter pfTokens = typeCounter pfTokens == length (Prelude.filter isFormat pfTokens)
 
@@ -129,7 +125,6 @@ qc = do
   QC.quickCheck prop_restOfName
   QC.quickCheck prop_nonPrintfArg
   QC.quickCheck prop_formatSpecP
-  -- QC.quickCheck prop_printfToken
   QC.quickCheck prop_typeCounter
   QC.quickCheck prop_roundtrip_bop
   QC.quickCheck prop_roundtrip_ifBop

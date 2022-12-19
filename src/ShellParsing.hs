@@ -325,7 +325,9 @@ arrAssignP = Arr <$> wsP (between (string "(") (many (satisfy (/= ')'))) (string
 
 -- | Parses a line of input for an assignment
 assignP :: Parser BashCommand
-assignP = (Assign . V <$> name) <*> (char '=' *> (arrAssignP <|> expP))
+assignP = (Assign . V <$> filter isNotSpecial name) <*> (char '=' *> (arrAssignP <|> expP))
+  where
+    isNotSpecial = not . (`elem` reserved ++ operators)
 
 -- >>> parse name "4"
 -- Left "\t<PARSING ERROR> No more characters to parse."
@@ -445,7 +447,7 @@ conditionalStrP :: Parser String
 conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
 
 -- >>> parse conditionalP "if [[ 'hi' -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
--- Left "[ParseError] Please check line:   hi\"   "
+-- Right (Conditional (IfOp2 (IfVal (StringVal "hi")) Ef (IfVal (StringVal "hello"))) (Block [ExecCommand (ExecName "echo") [DoubleQuote [ArgS "$y"]]]) (Block [ExecCommand (ExecName "echo") [DoubleQuote [ArgS "hi"]]]))
 
 ifNonExp :: Parser IfExpression
 ifNonExp = IfVar <$> varP <|> IfVal <$> valueP
@@ -462,11 +464,13 @@ conditionalP =
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))) "if [ $y > hi ]\n"
--- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
+-- Left "\t<PARSING ERROR> Please check line:  hi ]."
 
 -- parse error (possibly incorrect indentation or mismatched brackets)
 -- >>> parse conditionalP "if [ $y > hi ]\nthen\n  echo $x\nelse\n  echo \"hello\"\nfi\n"
--- Left "[ParseError] Please check line:   hello\"   ."
+-- Left "\t<PARSING ERROR> Please check line:  hi ]."
+
+-- Left "\t<PARSING ERROR> Please check line:  hi ]."
 
 -- >>> parse bashCommandP "x=$xe"
 -- Right (Assign (V "x") (Var (V "xe")))
@@ -492,7 +496,7 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- Right (Assign (V "x") (Arr "hi, hi"))
 
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
--- Left " -a awefew wefjkl"
+-- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])
 
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)

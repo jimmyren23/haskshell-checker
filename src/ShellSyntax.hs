@@ -104,6 +104,12 @@ data ArgToken
   | ArgM Misc
   deriving (Eq, Show)
 
+instance Arbitrary ArgToken where
+  arbitrary :: Gen ArgToken
+  arbitrary = QC.frequency [(80, ArgS <$> genPrintFToken), (1, possibleTokens)]
+    where
+      possibleTokens :: Gen ArgToken = elements [ArgM Esc, ArgM Tilde]
+
 data Misc
   = Tilde -- ~
   | Esc -- \'
@@ -270,7 +276,7 @@ newtype Block = Block [BashCommand]
 genBlock :: Gen Block
 genBlock = QC.sized gen
   where
-    gen n = QC.frequency [(1, Block <$> vectorOf 1 arbitrary)]
+    gen n = QC.frequency [(1, Block <$> vectorOf 1 (oneof [Assign <$> arbitrary <*> arbitrary, PossibleAssign <$> arbitrary, ExecCommand <$> (ExecName <$> genName) <*> genArgs]))]
 
 instance Arbitrary Block where
   arbitrary = genBlock
@@ -346,7 +352,7 @@ instance Arbitrary PrintfToken where
   arbitrary :: Gen PrintfToken
   arbitrary =
     frequency
-      [ (20, Token <$> genToken),
+      [ (20, Token <$> arbitrary),
         (1, pure FormatS),
         (1, pure FormatD),
         (1, pure FormatF),

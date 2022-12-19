@@ -227,7 +227,7 @@ instance PP BashCommand where
   pp (PossibleAssign pa) = pp pa
   -- TODO: update conditional
   pp (Conditional ifExp b1 b2) =
-    PP.hang (PP.text "if" <+> pp ifExp <+> PP.text "then") 2 (pp b1)
+    PP.hang (PP.text "if" <+> PP.text "[[" <+> pp ifExp <+> PP.text "]]" <+> PP.text "then") 2 (pp b1)
       PP.$$ PP.nest 2 (PP.text "else" PP.$$ pp b2)
       PP.$$ PP.text "fi"
   pp (ExecCommand comm args) = pp comm <+> pp args
