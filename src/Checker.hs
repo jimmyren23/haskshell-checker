@@ -72,7 +72,7 @@ checkUnquotedVar token history =
 -- | Checks if variables are used in single quotes
 checkVarInSingleQuotes :: ArgToken -> Either Message ArgToken
 checkVarInSingleQuotes t@(ArgS ts) =
-  case parse S.variableRef ts of
+  case parse S.varP ts of
     Left error -> Right t
     Right _ -> Left (WarningMessage "Variables cannot be used inside single quotes")
 checkVarInSingleQuotes t = Right t
@@ -89,7 +89,7 @@ checkArgSingleQuotes [] _ = Right []
 
 checkVarInDoubleQuotes :: ArgToken -> Map Var BashCommand -> BashCommand -> Either Message ArgToken
 checkVarInDoubleQuotes t@(ArgS ts) history cmd =
-  case parse S.variableRef ts of
+  case parse S.varP ts of
     Left error -> Right t
     Right var ->
       let V possVar = var
@@ -391,7 +391,6 @@ isTokenVar history t =
       Left _ -> False
       Right var -> Map.member var history
     _ -> False
-isTokenVar _ _ = False
 
 checkVarInPrintfArgs :: [Arg] -> Map Var BashCommand -> Either Message [Arg]
 checkVarInPrintfArgs args history =
@@ -446,7 +445,7 @@ checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
 checkArg args@(x : xs) history cmd =
   case x of
     Arg a ->
-      case parse S.variableRef a of
+      case parse S.varP a of
         Left error -> Right args
         Right var ->
           let V possVar = var

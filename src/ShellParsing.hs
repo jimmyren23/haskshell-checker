@@ -91,15 +91,9 @@ formatSpecP =
     <|> constP "%g" FormatG
     <|> constP "%a" FormatA
 
-<<<<<<< Updated upstream
--- | Parser for all tokens in printf except format specificators
-printfTokenP :: Parser PrintfToken
-printfTokenP = Token <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
-=======
 -- | Parser for all tokens ixn printf except format specificators
-printfToken :: Parser PrintfToken
-printfToken = Token . ArgS <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
->>>>>>> Stashed changes
+printfTokenP :: Parser PrintfToken
+printfTokenP = Token . ArgS <$> ((:) <$> satisfy (/= '%') <*> many (satisfy (/= '%')))
 
 -- | Parser for printf
 printfP :: Parser [PrintfToken]
@@ -114,27 +108,17 @@ typeCounter :: [PrintfToken] -> Int
 typeCounter = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
 
 -- | Counts the number of format specificators of the tokens inside a format of a printf
-<<<<<<< Updated upstream
-numFormatSpecInTokens :: [Token] -> Int
-numFormatSpecInTokens (x : xs) = case parse printfP x of
-  Left _ -> numFormatSpecInTokens xs
-  Right printfTokens -> helper printfTokens + numFormatSpecInTokens xs
-    where
-      helper = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
-numFormatSpecInTokens [] = 0
-=======
-tokenPars :: [ArgToken] -> Int
-tokenPars (x : xs) = 
+numFormatSpecInTokens :: [ArgToken] -> Int
+numFormatSpecInTokens (x : xs) = 
   case x of 
     ArgS s ->
-      case parse printfParser s of
-        Left _ -> tokenPars xs
-        Right printfTokens -> helper printfTokens + tokenPars xs
+      case parse printfP s of
+        Left _ -> numFormatSpecInTokens xs
+        Right printfTokens -> helper printfTokens + numFormatSpecInTokens xs
           where
-            helper = foldr (\x acc -> case x of FormatSpec -> acc + 1; _ -> acc) 0
-    ArgM _ -> tokenPars xs
-tokenPars [] = 0
->>>>>>> Stashed changes
+            helper = foldr (\x acc -> if isFormat x then acc + 1 else acc) 0
+    ArgM _ -> numFormatSpecInTokens xs
+numFormatSpecInTokens [] = 0
 
 -- | Parses binary operators for non-conditional expressions
 bopP :: Parser Bop
@@ -196,14 +180,9 @@ level Minus = 5
 level Concat = 4
 level _ = 3 -- comparison operators
 
-<<<<<<< Updated upstream
 uopP :: Parser Uop
-uopP =
-  constP "-" Neg
-    <|> constP "not" Not
+uopP = constP "not" Not
 
-=======
->>>>>>> Stashed changes
 -- | Parses unary operators
 ifUopP :: Parser IfUop
 ifUopP =
@@ -273,40 +252,12 @@ backticksP :: Parser String
 backticksP = between (char '`') innerBacktick (wsP (char '`'))
 
 -- | Single quoted string - parses tokens that aren't allowed as well
-<<<<<<< Updated upstream
-sqStringValErrP :: Parser [Token]
-sqStringValErrP = between (char '\'') (many (errorStrParser <|> wsP word)) (char '\'')
-
--- >>> parse backticksP "`waefjk~jkw!@#$`"
--- Right "waefjk~jkw!@#$"
-
--- >>> parse dqStringValErrP "\"efjkelw~\""
--- Right ["efjkelw~"]
-
--- >>> parse valueP
--- No instance for (Show (String -> Either String Value))
---   arising from a use of ‘evalPrint’
---   (maybe you haven't applied a function to enough arguments?)
-=======
 sqStringValErrP :: Parser [ArgToken]
 sqStringValErrP = between (char '\'') (many ((ArgM <$> errorStrParser) <|> (ArgS <$> (word <* many space)))) (char '\'')
->>>>>>> Stashed changes
 
 stringValP :: Parser Value
 stringValP = StringVal <$> (dqStringValP <|> sqStringValP)
 
-<<<<<<< Updated upstream
--- wordP :: Parser Value
--- wordP = Word <$> wsP (many (satisfy (/= ' ')) <* string " ")
-
--- >>> parse conditionalP "if [[ hes -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"$y\"\nfi\n"
--- Left "[ParseError] Please check line:   $y\"   "
-
--- | parses different values
-=======
--- | Parses different types of values
->>>>>>> Stashed changes
-valueP :: Parser Value
 valueP = intValP <|> boolValP <|> stringValP
 
 -- | Parses non-cnditional expressions
@@ -316,16 +267,11 @@ expP = compP
     compP = catP `chainl1` opAtLevel (level Gt)
     catP = sumP `chainl1` opAtLevel (level Concat)
     sumP = prodP `chainl1` opAtLevel (level Plus)
-<<<<<<< Updated upstream
     prodP = uopexpP `chainl1` opAtLevel (level Times)
     uopexpP =
       baseP
         <|> Op1 <$> uopP <*> uopexpP
     baseP = Var <$> varP <|> Val <$> valueP
-=======
-    prodP = baseP `chainl1` opAtLevel (level Times)
-    baseP = Var <$> variableRef <|> Val <$> valueP
->>>>>>> Stashed changes
 
 -- wordP :: Parser Value
 -- wordP = Word <$> wsP word
@@ -339,12 +285,8 @@ ifExpP = bopexpP
       IfOp1 <$> ifUopP <*> uopexpP <|> baseP
     baseP = IfVar <$> varP <|> IfVal <$> valueP
 
--- >>> parse ifExpP "$y > hi"
--- Left "> hi"
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
+-- >>> parse ifBopP "-ew"
+-- Left "ew"
 
 -- | Parses array assignments in the form (...)
 arrAssignP :: Parser Expression
@@ -366,14 +308,8 @@ wsAssignP = PossibleAssignWS <$> (V <$> name) <*> many (char ' ') <*> string "="
 dsAssignP :: Parser PossibleAssign
 dsAssignP = PossibleAssignDS <$> (stringP "$" *> (V <$> name)) <*> many (char ' ' <|> char '=') <*> wsP expP
 
-<<<<<<< Updated upstream
 varP :: Parser Var
 varP = V <$> (char '$' *> wsP word)
-=======
--- | Parses variable usages
-variableRef :: Parser Var
-variableRef = V <$> (char '$' *> wsP word)
->>>>>>> Stashed changes
 
 -- | Parses variable usages as arguments
 argUnquotedVar :: Parser Arg
@@ -409,31 +345,6 @@ oldArithmeticExpansion = stringP "$" *> between (stringP "[") innerArithmeticOld
 -- | Parses possible regex expressions based on common operators
 regex :: Parser String
 regex =
-<<<<<<< Updated upstream
-  (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
-    <|> (many (satisfy (/= '^')) *> string "^" <* some get)
-    <|> (some (satisfy (/= '|')) *> string "|" <* some get)
-    <|> (many (satisfy (/= '(')) *> char '(' *> some (satisfy (/= ')')) <* char ')' <* many get)
-    <|> (many (satisfy (/= '[')) *> char '[' *> some (satisfy (/= ']')) <* char ']' <* many get)
-    <|> (many (satisfy (/= '*')) *> string "*" <* some get)
-    <|> (some (satisfy (/= '*')) *> string "*" <* many get)
-    <|> (many (satisfy (/= '/')) *> string "/" <* some get)
-
--- >>> parse regex "asdf(asdfad)asdf"
--- Right "asdfad"
-
--- >>> parse possibleAssignP "a =1"
--- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 1))))
-
--- >>> parse possibleAssignP "$a=7"
--- Right (PossibleAssign (PossibleAssignDS (V "a") "=" (Val (IntVal 7))))
-
--- Right (PossibleAssign (V "a") (Val (IntVal 7)))
--- >>> parse possibleAssignP "a =3"
--- Right (PossibleAssign (PossibleAssignWS (V "a") " " "=" "" (Val (IntVal 3))))
-
--- | parses anything thats not an operator, quote, or space
-=======
    (some (satisfy (`notElem` regOps)) *> (string "$" <|> string "+" <|> string "?") <* many get)
    <|> (many (satisfy (/= '^')) *> string "^" <* some get)
    <|> (some (satisfy (/= '|')) *> string "|" <* some get)
@@ -444,7 +355,6 @@ regex =
    <|> (many (satisfy (/= '/')) *> string "/" <* some get)
   
 -- | Parses anything that's not an operator, quote, or space
->>>>>>> Stashed changes
 notQuoteOrSpaceP :: Parser Char
 notQuoteOrSpaceP = satisfy (\c -> c /= '"' && c /= '\'' && not (isSpace c))
 
@@ -454,9 +364,6 @@ notQuoteOrSpaceOrNewLineP = satisfy (\c -> not (isSpace c) && c /= '\n')
 word :: Parser String
 word = (:) <$> notQuoteOrSpaceP <*> many notQuoteOrSpaceP
 
-<<<<<<< Updated upstream
--- parses command name
-=======
 reserved :: [String]
 reserved = ["!", "fi", "then", "elif", "else", "if", "<tilde>", "escape>"]
 
@@ -464,13 +371,11 @@ operators :: [String]
 operators = ["&&", "||", ";;", "<<", ">>", "<&", ">&", "<>", "<<-", ">|", "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "!", "(", ")", "{", "}", "[", "]", ";", "&", "|", ">", "<", ">>", "<<", "<<<", ">>>"]
 
 -- | Parses command name
->>>>>>> Stashed changes
 commandP :: Parser Command
 commandP = ExecName <$> wsP (filter isNotSpecial name)
   where
     isNotSpecial = not . (`elem` reserved ++ operators)
 
-<<<<<<< Updated upstream
 -- | parses single word as an arg
 singleArgP :: Parser Arg
 singleArgP = Arg <$> word
@@ -482,20 +387,10 @@ quotedArgP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValE
 -- | parses args
 argP :: Parser Arg
 argP = singleArgP <|> quotedArgP
-=======
--- | Parses single word as an arg
-argP :: Parser Arg
-argP = Arg <$> word
-
--- | Parses quoted string as an arg
-argsP :: Parser Arg
-argsP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
->>>>>>> Stashed changes
 
 execCommandP :: Parser BashCommand
 execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
 
-<<<<<<< Updated upstream
 -- >>> parse execCommandP "echo \"hi\"\n"
 -- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
 
@@ -516,14 +411,6 @@ conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, 
 
 ifNonExp :: Parser IfExpression
 ifNonExp = IfVar <$> varP <|> IfVal <$> valueP
-=======
--- conditionalStrP :: Parser String
--- conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
-
--- | Parses if expression in arithmetic context
-ifNonExp :: Parser IfExpression
-ifNonExp = IfVar <$> variableRef <|> IfVal <$> valueP
->>>>>>> Stashed changes
 
 -- | Parses the entire conditional block "if [...] then [...] else [...] fi"
 conditionalP :: Parser BashCommand
@@ -536,7 +423,6 @@ conditionalP =
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
-<<<<<<< Updated upstream
 -- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))) "if [ $y > hi ]\n"
 -- Right (IfOp2 (IfVar (V "y")) GtIf (IfVal (Word "hi")))
 
@@ -570,11 +456,6 @@ bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 -- >>> parse bashCommandP "ls -l -a awefew wefjkl"
 -- Left " -a awefew wefjkl"
 
-=======
-bashCommandP :: Parser BashCommand
-bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
-
->>>>>>> Stashed changes
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
 
@@ -582,48 +463,3 @@ blockP = Block <$> many (wsP bashCommandP)
 -- | Parses inputted file entirely 
 parseShellScript :: String -> IO (Either String Block)
 parseShellScript = parseFromFile (const <$> blockP <*> eof)
-
-<<<<<<< Updated upstream
-word2 :: Parser String
-word2 = (:) <$> satisfy (/= '\n') <*> many (satisfy (/= '\n'))
-
-commaInArr :: Parser String
-commaInArr = many (satisfy (/= ',')) <* stringP "," <* many (char ' ')
-
-entireCommaInArr :: Parser [String]
-entireCommaInArr = some commaInArr <* many get
-
--- >>> parse (some commaInArrParsing <* (many get)) "hello, hi hi"
--- Right ["hello"]
-
--- newlineP :: Parser String
--- newlineP =
-
--- >>> parse bashCommandP "echo \"hi\""
--- Right (ExecCommand (ExecName "echo") [DoubleQuote ["hi"]])
-
--- >>> parse newlineP "y=1\nif [$y -lt 1] \nthen\n  x=2\nelse\n  x=3\nfi\n"
--- Variable not in scope: newlineP :: Parser a
-
--- How it looks : "if [y < 0] \nthen\n  x=2\nelse\n  x=3\nfi\n"
-
--- >>> parse expP "1"
--- Right (Val (IntVal 1))
-
--- >>> parse untilNewline "\nif [[ $x -ew \\\"hello\\\" ]]\n"
--- Right ""
-
--- >>> parse expP "$y < 1"
--- Right (Op2 (Var (V "y")) Lt (Val (IntVal 1)))
-
--- >>> parseShellScript "test/conditional.sh"
--- Right (Block [Assign (V "y") (Val (IntVal 1)),PossibleAssign (PossibleAssignWS (V "x") " " "=" " " (Val (IntVal 1))),Conditional (Op2 (Var (V "x")) And (Val (StringVal "hi"))) (Block [Assign (V "x") (Val (IntVal 4))]) (Block [Assign (V "x") (Val (IntVal 3))])])
-
-p :: String -> Block -> IO ()
-p fn ast = do
-  result <- parseShellScript fn
-  case result of
-    (Left _) -> assert False
-    (Right ast') -> assert (ast == ast')
-=======
->>>>>>> Stashed changes

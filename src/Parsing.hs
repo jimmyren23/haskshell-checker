@@ -160,7 +160,7 @@ errP rtrnVal = wsP (many (satisfy (/= ' '))) *> pure rtrnVal
 
 -- many (satisfy (/= ' ')) <* string " " <* many get *> pure rtrnVal
 
--- >>> parse (errP ErrU) "-as"
+-- >>> parse (errP Err) "-ew"
 -- Right ErrU
 
 untilNewline :: Parser String

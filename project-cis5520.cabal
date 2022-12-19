@@ -92,6 +92,7 @@ library
       ShellParsing
       Suggestions
       ShellSyntax
+      QuickCheck
   hs-source-dirs:
       src
   default-language: Haskell2010

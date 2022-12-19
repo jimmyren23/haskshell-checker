@@ -1,11 +1,11 @@
 y= 1
 x=(hi, hi)
 echo "~"
-if [ $y > 'hii' ]
+if [ $x > 'hii' ]
 then
-  if [ $y > 'hii' ]
+  if [ $x > 'hii' ]
   then
-    echo '$y'
+    echo "$y"
   else
     echo "$x"
   fi
