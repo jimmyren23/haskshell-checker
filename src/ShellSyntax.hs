@@ -29,9 +29,6 @@ instance Arbitrary BashCommand where
   arbitrary :: Gen BashCommand
   arbitrary = oneof [Assign <$> arbitrary <*> arbitrary, PossibleAssign <$> arbitrary, ExecCommand <$> (ExecName <$> genName) <*> genArgs, Conditional <$> arbitrary <*> arbitrary <*> arbitrary]
 
--- >>> QC.sample' (arbitrary :: Gen BashCommand)
--- [ExecCommand (ExecName "T") [],ExecCommand (ExecName "hA") [Arg "*",Arg "|"],ExecCommand (ExecName "h8P") [Arg "c",Arg "M",Arg "8"],PossibleAssign (PossibleAssignDS (V "TpAWsM") "=" (Val (IntVal 6))),ExecCommand (ExecName "kUH0J") [Arg ",",Arg ";",Arg "7",Arg "."],ExecCommand (ExecName "soGOHi") [Arg "h",Arg "+",Arg "n",Arg "|"],PossibleAssign (PossibleAssignWS (V "JL3ZEPyljc") "     " "=" "     " (Val (BoolVal True))),PossibleAssign (PossibleAssignDS (V "Xd1uz") "=" (Val (StringVal ":Or,=.J8l}7T"))),ExecCommand (ExecName "A8mmy") [Arg "N",Arg "t",Arg "7",Arg "rD8]",Arg "w"],Assign (V "y9bJUEEmLfv8iByuXBw") (Val (StringVal "C;\\rJ")),PossibleAssign (PossibleAssignWS (V "_xonmqSsk03mw_g") "  " "=" "      " (Val (StringVal "Rmi*")))]
-
 {- ExecCommand syntax -}
 
 newtype Command = ExecName String
@@ -131,9 +128,6 @@ instance Arbitrary IfExpression where
   arbitrary :: Gen IfExpression
   arbitrary = QC.frequency [(10, IfVar <$> arbitrary), (10, IfVal <$> arbitrary), (10, liftM2 IfOp1 arbitrary arbitrary), (1, liftM3 IfOp2 arbitrary arbitrary arbitrary), (0, liftM3 IfOp3 arbitrary arbitrary arbitrary)]
 
--- >>> QC.sample' (arbitrary :: Gen IfExpression)
--- [IfOp2 (IfOp2 (IfOp3 (IfVal (IntVal 0)) GeNIf (IfVal (StringVal ""))) DivideIf (IfOp3 (IfOp2 (IfVal (BoolVal False)) Ne (IfOp1 Socket (IfOp1 GroupIdUser (IfVar (V "\\"))))) Nt (IfOp3 (IfVar (V "Q")) GeNIf (IfOp1 FolderExists (IfOp3 (IfOp3 (IfVal (StringVal "")) Ot (IfOp2 (IfVar (V "l")) Err (IfVal (StringVal "")))) EqNIf (IfOp2 (IfVal (BoolVal False)) Nt (IfOp2 (IfOp3 (IfVal (BoolVal True)) LeNIf (IfVal (IntVal 0))) Ne (IfVar (V "%"))))))))) Ef (IfVar (V "C")),IfOp2 (IfVar (V "|")) GeNIf (IfVar (V "M")),IfOp2 (IfVar (V "9")) ModuloIf (IfOp3 (IfVal (IntVal (-4))) LeNIf (IfOp1 FileSize (IfVar (V "{")))),IfOp3 (IfVal (IntVal (-5))) Nt (IfOp1 UserId (IfVal (BoolVal False))),IfVal (BoolVal False),IfVar (V ","),IfOp3 (IfOp1 ExecPermission (IfVal (BoolVal True))) LeIf (IfVar (V "*")),IfOp1 FileOrFolderExists (IfVal (StringVal "&?[")),IfVal (IntVal 15),IfOp2 (IfOp3 (IfVar (V "T")) AndIf (IfVal (IntVal 4))) ModuloIf (IfOp2 (IfOp1 Owner (IfOp2 (IfOp1 LengthZero (IfOp1 GroupIdUser (IfVal (BoolVal False)))) LeNIf (IfOp1 GroupIdUser (IfOp1 LengthNonZero (IfVal (IntVal 2)))))) GeIf (IfVal (BoolVal False))),IfOp1 WritePermission (IfOp2 (IfVar (V "z")) LtIf (IfOp1 ExecPermission (IfVar (V "w"))))]
-
 -- | List of binary operators permitted for bash conditional expressions
 -- | Note: This list may not be comprehensive of all permitted binary operators.
 -- | Referenced : https://linuxhint.com/bash_operator_examples/#o73
@@ -187,9 +181,6 @@ genEqual = QC.elements ["="]
 instance Arbitrary PossibleAssign where
   arbitrary :: Gen PossibleAssign
   arbitrary = QC.frequency [(1, liftM5 PossibleAssignWS arbitrary genSpaces genEqual genSpaces arbitrary), (1, liftM3 PossibleAssignDS arbitrary genEqual arbitrary)]
-
--- >>> QC.sample' (arbitrary :: Gen PossibleAssign)
--- [PossibleAssignDS (V "]") "=" (Val (BoolVal False)),PossibleAssignDS (V "V") "=" (Var (V "c")),PossibleAssignDS (V "p") "=" (Var (V "]")),PossibleAssignWS (V ";") "" "=" "  " (Var (V ",")),PossibleAssignDS (V ")") "=" (Var (V "D")),PossibleAssignWS (V "[") " " "=" "  " (Val (IntVal 1)),PossibleAssignWS (V "Y") "  " "=" "  " (Var (V "i")),PossibleAssignWS (V ">") "  " "=" "" (Val (StringVal "zrW-$")),PossibleAssignDS (V "Z") "=" (Var (V "o")),PossibleAssignWS (V "8") "   " "=" "  " (Val (IntVal 18)),PossibleAssignDS (V "k") "=" (Val (StringVal "5rm;M"))]
 
 -- | Representation of all expressions except conditional (see "IfExpression")
 data Expression
@@ -280,9 +271,6 @@ genBlock = QC.sized gen
 
 instance Arbitrary Block where
   arbitrary = genBlock
-
--- >>> QC.sample' (arbitrary :: Gen Block)
--- [Block [Assign (V "w") (Val (BoolVal False))],Block [ExecCommand (ExecName "i") [Arg "9",Arg "L"]],Block [PossibleAssign (PossibleAssignWS (V "p9lKo") "  " "=" "   " (Var (V "Ukxe")))],Block [ExecCommand (ExecName "ZoJd") [DoubleQuote [ArgS "V",ArgS "T",ArgS "e",ArgS "G",ArgS "b",ArgS "["],Arg "w",Arg "w"]],Block [ExecCommand (ExecName "IvaW2ZCp") [Arg "*",Arg "0",Arg "`",Arg "L"]],Block [PossibleAssign (PossibleAssignWS (V "dUpDn1V") "   " "=" "  " (Val (StringVal "WT")))],Block [Assign (V "pEPFDR5If") (Var (V "s9"))],Block [Assign (V "Yg") (Var (V "w"))],Block [ExecCommand (ExecName "dKt_R") [Arg "4",Arg "5",Arg "X",Arg "H",Arg "M"]],Block [ExecCommand (ExecName "PVLhzMQPEpeVQ_2Rej") [Arg "\\",Arg "_",DoubleQuote [ArgS "$",ArgS "3",ArgS "j",ArgS "n",ArgS ",",ArgS "|",ArgS "q",ArgS "W",ArgS "[",ArgS "L",ArgS "A",ArgS "N",ArgS "%",ArgS "0"],Arg "o",Arg "x"]],Block [ExecCommand (ExecName "YUYzCCyCtwJ64lJQPT") [DoubleQuote [ArgS "*",ArgS "c",ArgS "-"],Arg ",",Arg "`",Arg "s",Arg "|"]]]
 
 instance Semigroup Block where
   Block s1 <> Block s2 = Block (s1 <> s2)

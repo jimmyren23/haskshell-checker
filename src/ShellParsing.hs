@@ -221,11 +221,6 @@ dqStringValP = between (char '\"') innerDq (wsP (char '\"'))
 dqStringValErrP :: Parser [ArgToken]
 dqStringValErrP = between (char '\"') (many ((ArgM <$> errorStrParser) <|> (ArgS <$> (word <* many space)))) (char '\"')
 
--- >>> parse dqStringValErrP "\"$y\""
--- Right [ArgS "$y"]
--- >>> parse bashCommandP "printf \"$y\""
--- Right (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "$y"]])
-
 -- | Single quoted string - extracts out pure string only
 sqStringValP :: Parser String
 sqStringValP = between (char '\'') innerSq (wsP (char '\''))
@@ -256,9 +251,6 @@ expP = compP
         <|> Op1 <$> uopP <*> uopexpP
     baseP = Var <$> varP <|> Val <$> valueP
 
--- wordP :: Parser Value
--- wordP = Word <$> wsP word
-
 -- | Parses onditional expressions
 ifExpP :: Parser IfExpression
 ifExpP = bopexpP
@@ -278,14 +270,9 @@ assignP = (Assign . V <$> filter isNotSpecial name) <*> (char '=' *> (arrAssignP
   where
     isNotSpecial = not . (`elem` reserved ++ operators)
 
--- >>> parse name "4"
--- Left "\t<PARSING ERROR> No more characters to parse."
-
 -- | Parses potential assignments with syntax issues
 possibleAssignP :: Parser BashCommand
 possibleAssignP = PossibleAssign <$> (wsAssignP <|> dsAssignP)
-
--- >>> parse possibleAssignP "T=0"
 
 -- | Parses var with whitespaces (retains them, too)
 wsAssignP :: Parser PossibleAssign
@@ -364,9 +351,6 @@ commandP = ExecName <$> wsP (filter isNotSpecial name)
 singleArgP :: Parser Arg
 singleArgP = Arg <$> word
 
--- >>> parse (spaces singleArgP) "hi \n hello"
--- Left "\n hello"
-
 -- | parses quoted string as an arg
 quotedArgP :: Parser Arg
 quotedArgP = (SingleQuote <$> sqStringValErrP) <|> (DoubleQuote <$> dqStringValErrP)
@@ -380,9 +364,6 @@ execCommandP = ExecCommand <$> commandP <*> many argP <* many (char '\n')
 
 conditionalStrP :: Parser String
 conditionalStrP = choice [wsP $ string "", wsP (string "if ["), wsP $ many get, wsP (string "fi")]
-
--- >>> parse conditionalP "if [[ 'hi' -ef \"hello\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
--- Right (Conditional (IfOp2 (IfVal (StringVal "hi")) Ef (IfVal (StringVal "hello"))) (Block [ExecCommand (ExecName "echo") [DoubleQuote [ArgS "$y"]]]) (Block [ExecCommand (ExecName "echo") [DoubleQuote [ArgS "hi"]]]))
 
 ifNonExp :: Parser IfExpression
 ifNonExp = IfVar <$> varP <|> IfVal <$> valueP
@@ -398,44 +379,11 @@ conditionalP =
     <*> (wsP (string "then") *> wsP blockP)
     <*> (wsP (string "else") *> wsP blockP <* wsP (string "fi"))
 
--- >>> parse ((wsP (string "if [") *> wsP ifExpP <* wsP (string "]")) <|> (wsP (string "if [[") *> wsP ifExpP <* wsP (string "]]")) <|> (wsP (string "if ((") *> (IfOp3 <$> ifNonExp <*> ifBopP <*> ifNonExp) <* wsP (string "))"))) "if [ $y > hi ]\n"
--- Left "\t<PARSING ERROR> Please check line:  hi ]."
-
--- parse error (possibly incorrect indentation or mismatched brackets)
--- >>> parse conditionalP "if [ $y > hi ]\nthen\n  echo $x\nelse\n  echo \"hello\"\nfi\n"
--- Left "\t<PARSING ERROR> Please check line:  hi ]."
-
--- Left "\t<PARSING ERROR> Please check line:  hi ]."
-
--- >>> parse bashCommandP "x=$xe"
--- Right (Assign (V "x") (Var (V "xe")))
-
--- >>> parse (wsP (string "if [") *> wsP blockP <* string "]") "if [y=1]"
-
 bashCommandP :: Parser BashCommand
 bashCommandP = assignP <|> conditionalP <|> possibleAssignP <|> execCommandP
 
--- >>> parse bashCommandP "echo \"~\""
--- Right (ExecCommand (ExecName "echo") [DoubleQuote [ArgM Tilde]])
-
--- >>> parse arithmeticExpansion "$((3 + 4))"
--- Right "3 + 4"
-
--- >>> parse bashCommandP "x=1\nif [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
--- Left "if [[ $z -eq \"hii\" ]]\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
-
--- >>> parse bashCommandP "4=$7"
--- Left "\t<PARSING ERROR> No more characters to parse."
-
--- >>> parse bashCommandP "x=(hi, hi)"
--- Right (Assign (V "x") (Arr "hi, hi"))
-
--- >>> parse bashCommandP "ls -l -a awefew wefjkl"
--- Right (ExecCommand (ExecName "ls") [Arg "-l",Arg "-a",Arg "awefew",Arg "wefjkl"])
-
 blockP :: Parser Block
 blockP = Block <$> many (wsP bashCommandP)
-
 
 -- | Parses inputted file entirely 
 parseShellScript :: String -> IO (Either String Block)

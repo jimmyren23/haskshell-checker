@@ -1,6 +1,9 @@
-if [ $x -eq "hi+" ]
+y= 1
+x=(hi, hi)
+echo "~"
+if [ $x -eq "hi" ]
 then
-  if [ $x > 'hii' ]
+  if [ $x =~ 'hii+' ]
   then
     echo "hi"
   else

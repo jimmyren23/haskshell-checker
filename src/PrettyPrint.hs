@@ -115,14 +115,10 @@ instance PP [ArgToken] where
   pp [arg] = pp arg
   pp (x : xs) = pp x <+> pp xs
 
--- >>> pp ([Arg "hello", Arg "world", SingleQuote [ArgS "hello", ArgS "world"], DoubleQuote [ArgS "hello", ArgS "world"]])
--- hello world 'hello world' "hello world"
-
 instance PP ArgToken where
   pp (ArgS s) = PP.text s
   pp (ArgM m) = pp m
 
--- >>> pp (ArgM (Misc ))
 instance PP Misc where
   pp Tilde = PP.text "~"
   pp Esc = PP.text "\\'"

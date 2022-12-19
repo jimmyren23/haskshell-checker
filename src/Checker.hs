@@ -374,9 +374,6 @@ mapRight :: Either Message ArgToken -> Either Message [ArgToken]
 mapRight (Right x) = Right [x]
 mapRight (Left x) = Left x
 
--- >>> checkArg ([DoubleQuote [ArgS "$y"]]) ( Map.fromList [(V "y", (PossibleAssign (PossibleAssignWS (V "y") " " "=" "" (Val (IntVal 1)))))]  ) (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "$y"]])
--- Left (WarningMessage "Did you mean to assign variable y when you wrote: `$y =1`? It was used later in: `printf \"$y\"`")
-
 checkArg :: [Arg] -> Map Var BashCommand -> BashCommand -> Either Message [Arg]
 checkArg args@(x : xs) history cmd =
   case x of

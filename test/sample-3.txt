@@ -1,6 +1,6 @@
 x=$x
 z=1
-if [ 1 as "2" ]
+if [ 1 > "2" ]
 then
   if (( $y + 1 ))
   then
