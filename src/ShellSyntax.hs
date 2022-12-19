@@ -15,6 +15,9 @@ data BashCommand
   | PossibleAssign PossibleAssign -- potential assignment commands with syntax errors
   deriving (Eq, Show)
 
+instance Arbitrary BashCommand where
+  arbitrary = oneof [ExecCommand <$> arbitrary <*> arbitrary, Conditional <$> arbitrary <*> arbitrary <*> arbitrary, PossibleConditional <$> arbitrary <*> arbitrary <*> arbitrary, Assign <$> arbitrary <*> arbitrary]
+
 {- ExecCommand syntax -}
 
 newtype Command = ExecName String
@@ -150,6 +153,10 @@ data Expression
   | Arr String
   deriving (Eq, Show)
 
+instance Arbitrary Expression where
+  arbitrary :: Gen Expression
+  arbitrary = QC.frequency [(30, Var <$> arbitrary), (30, Val <$> arbitrary), (1, liftM2 Op1 arbitrary arbitrary), (1, liftM3 Op2 arbitrary arbitrary arbitrary)]
+
 type Equal = String -- "=" for variable assignments
 
 -- | List of binary operators for expressions
@@ -218,6 +225,9 @@ instance Arbitrary Value where
 -- | Representation for a list of all commands
 newtype Block = Block [BashCommand]
   deriving (Eq, Show)
+
+instance Arbitrary Block where
+  arbitrary = Block <$> QC.listOf arbitrary
 
 instance Semigroup Block where
   Block s1 <> Block s2 = Block (s1 <> s2)
