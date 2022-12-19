@@ -103,7 +103,7 @@ verifyRegStrings :: String -> IfExpression -> Either Message IfExpression
 verifyRegStrings s exp =
   case parse S.regex s of
     Left _ -> Right exp
-    Right _ -> Left (WarningMessage $ "Remove quotes in [" ++ pretty exp ++ "] to match as a regex instead of literally")
+    Right _ -> Left (WarningMessage $ "Remove quotes in " ++ pretty exp ++ " to match as a regex instead of literally")
 
 -- | Checks if regex is quoted in expression with =~
 checkQuotedRegex :: IfExpression -> Either Message IfExpression
@@ -149,8 +149,8 @@ checkLiteralVacuousTrue exp =
 checkUnsupportedOperators :: IfExpression -> Either Message IfExpression
 checkUnsupportedOperators exp =
   case exp of
-    IfOp2 _ Err _ -> Left (ErrorMessage $ "Operator in [" ++ pretty exp ++ "] is not supported")
-    IfOp3 _ Err _ -> Left (ErrorMessage $ "Operator in [" ++ pretty exp ++ " is not supported")
+    IfOp2 _ Err _ -> Left (ErrorMessage $ "Operator in " ++ pretty exp ++ " is not supported")
+    IfOp3 _ Err _ -> Left (ErrorMessage $ "Operator in " ++ pretty exp ++ " is not supported")
     _ -> Right exp
 
 -- | Checks if unassigned variables are used

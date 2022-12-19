@@ -4,7 +4,6 @@ module Main where
 
 import Control.Monad (unless)
 import Parsing
-import QuickCheck
 import ShellParsing
 import Suggestions
 import System.Environment (getArgs)

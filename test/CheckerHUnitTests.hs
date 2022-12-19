@@ -24,11 +24,11 @@ test_quoting =
       checkVarInSingleQuotes (ArgS "var")
         ~?= Right (ArgS "var"),
       checkVarInDoubleQuotes (ArgS "$var") (Map.fromList [(V "var", PossibleAssign (PossibleAssignWS (V "var") " " "=" " " (Val (IntVal 1))))]) (Assign (V "var") (Val (IntVal 1)))
-        ~?= Left (WarningMessage "Did you mean to assign variable var when you wrote: `$var = 1`? It was used later in: `$var=1`"),
+        ~?= Left (WarningMessage "Did you mean to assign variable var when you wrote: `var = 1`? It was used later in: `var=1`"),
       checkVarInDoubleQuotes (ArgS "$var") Map.empty (Assign (V "var") (Val (IntVal 1)))
         ~?= Left (WarningMessage "Variable 'var' is not assigned"),
       checkVarInDoubleQuotes (ArgS "$var")  (Map.fromList [(V "var", Assign (V "var") (Arr "hi"))]) (ExecCommand (ExecName "echo") [Arg "$var"])
-        ~?= Left (WarningMessage "Referencing arrays as strings in `$var=(hi)`")
+        ~?= Left (WarningMessage "Referencing arrays as strings in `echo $var`")
     ]
 
 test_conditionals =
@@ -36,13 +36,13 @@ test_conditionals =
   ~: TestList
   [
     checkConstantTestExpressions (IfOp2 (IfVal (StringVal "hi")) GtIf (IfVal (IntVal 1)))
-      ~?= Left (WarningMessage "The expression `'hi' > 1` is constant"),
+      ~?= Left (WarningMessage "The expression ('hi' > 1) is constant"),
     checkConstantTestExpressions (IfOp2 (IfVar (V "var")) GtIf (IfVal (IntVal 1)))
       ~?= Right (IfOp2 (IfVar (V "var")) GtIf (IfVal (IntVal 1))),
     checkQuotedRegex (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "a+")))
-      ~?= Left (WarningMessage "Remove quotes in `'hi' =~ 'a+'` to match as a regex instead of literally"),
+      ~?= Left (WarningMessage "Remove quotes in ('hi' =~ 'a+') to match as a regex instead of literally"),
     checkQuotedRegex (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "a*c")))
-      ~?= Left (WarningMessage "Remove quotes in `'hi' =~ 'a*c'` to match as a regex instead of literally"),
+      ~?= Left (WarningMessage "Remove quotes in ('hi' =~ 'a*c') to match as a regex instead of literally"),
     checkQuotedRegex (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "aa")))
       ~?= Right (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "aa"))),
     checkTestOperators (IfOp3 (IfVal (StringVal "hi")) GtIf (IfVal (StringVal "aa")))
@@ -66,9 +66,9 @@ test_conditionals =
     checkLiteralVacuousTrue (IfOp1 LengthNonZero (IfVar (V "var")))
       ~?= Right (IfOp1 LengthNonZero (IfVar (V "var"))),
     checkUnsupportedOperators (IfOp2 (IfVal (IntVal 7)) Err (IfVal (IntVal 7)))
-      ~?= Left (ErrorMessage "Operator in `7 <op> 7` is not supported"),
+      ~?= Left (ErrorMessage "Operator in (7 <op> 7) is not supported"),
     checkVarInExp (IfOp1 LengthNonZero (IfVar (V "var"))) (Map.fromList [(V "var", PossibleAssign (PossibleAssignWS (V "var") " " "=" " " (Val (IntVal 1))))]) (IfOp1 LengthNonZero (IfVar (V "var")))
-      ~?= Left (WarningMessage "Did you mean to assign variable $var when you wrote:`$var = 1`? It was used later in: `-n $var`"),
+      ~?= Left (WarningMessage "Did you mean to assign variable var when you wrote:`var = 1`? It was used later in: `-n $var`"),
     checkVarInExp (IfOp1 LengthNonZero (IfVar (V "var"))) (Map.fromList [(V "var", Assign (V "var") (Val (IntVal 1)))]) (IfOp1 LengthNonZero (IfVar (V "var")))
     ~?= Right (IfOp1 LengthNonZero (IfVar (V "var"))),
     checkVarInExp (IfOp1 LengthNonZero (IfVar (V "var"))) Map.empty (IfOp1 LengthNonZero (IfVar (V "var")))
