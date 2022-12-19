@@ -135,12 +135,6 @@ choice = asum -- equivalent to: foldr (<|>) empty
 between :: Parser open -> Parser a -> Parser close -> Parser a
 between open p close = open *> p <* close
 
-parens :: Parser a -> Parser a
-parens x = between (stringP "(") x (stringP ")")
-
-doubleParens :: Parser a -> Parser a
-doubleParens x = between (stringP "((") x (stringP "))")
-
 -- | @sepBy p sep@ parses zero or more occurrences of @p@, separated by @sep@.
 --   Returns a list of values returned by @p@.
 sepBy :: Parser a -> Parser sep -> Parser [a]
@@ -167,15 +161,8 @@ constP s rtrnVal = wsP (string s) *> pure rtrnVal
 errP :: a -> Parser a
 errP rtrnVal = wsP (many (satisfy (/= ' '))) *> pure rtrnVal
 
--- many (satisfy (/= ' ')) <* string " " <* many get *> pure rtrnVal
-
--- >>> parse (errP Err) "-ew"
--- Right ErrU
-
 untilNewline :: Parser String
 untilNewline = many (satisfy (/= '\n')) <* newline <* many get
-
--- >>> parse untilNewline "if sjallk\n ajslkdlf"
 
 eof :: Parser ()
 eof = P $ \s -> case s of
@@ -184,22 +171,10 @@ eof = P $ \s -> case s of
     sn <- parse untilNewline x
     Left ("\t<PARSING ERROR> Please check line: `" ++ sn ++ "`.")
 
--- >>> parse untilNewline "if sjallk\n ajslkdlf"
--- Right "if sjallk"
-
--- >>> parse bashCommandP "echo \"hi\""
--- Variable not in scope: bashCommandP :: Parser a
-
 try1 :: FilePath -> IO String
 try1 filename = do
   handle <- IO.openFile filename IO.ReadMode
   IO.hGetContents handle
-
--- >>> parse (many get <* (string "\n") <* many get) "if \n"
--- Left "err"
-
--- >>> try1 "test/conditional.txt"
--- "x=1\nif (( $z -eq \"hii\" ))\nthen\n  echo \"$y\"\nelse\n  echo \"hi\"\nfi\n"
 
 {- File parsers -}
 

@@ -101,9 +101,6 @@ prop_roundtrip_ifNonExp ie = isNonExp ie ==> P.parse SP.ifNonExp (pretty ie) == 
 prop_roundtrip_ifExpP :: IfExpression -> Property
 prop_roundtrip_ifExpP ie = not (isNonExp ie) ==> P.parse SP.ifExpP (pretty ie) == Right ie
 
--- >>> P.parse SP.ifExpP (pretty (IfOp1 FileSize (IfVar (V "v"))))
--- Right (IfOp1 FileSize (IfVar (V "v")))
-
 prop_roundtrip_bash_command :: BashCommand -> Bool
 prop_roundtrip_bash_command bc = P.parse SP.bashCommandP (pretty bc) == Right bc
 

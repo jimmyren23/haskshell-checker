@@ -252,18 +252,3 @@ test_prettyPrint =
       -- pretty (PossibleAssign (V "var1") (Val (StringVal "hi"))) ~?= "var1 = \"hi\"",
       pretty (ExecCommand (ExecName "echo") [Arg "a", Arg "b", Arg "c"]) ~?= "echo a b c"
     ]
-
--- >>> runTestTT test_prettyPrint
--- Counts {cases = 2, tried = 2, errors = 0, failures = 0}
-
--- >>> pretty (Assign (V "var1") (Val (StringVal "hi")))
--- "var1='hi'"
-
--- >>> pretty (PossibleAssign (V "var1") (Val (StringVal "hi")))
--- Couldn't match expected type ‘Expression -> a0’
---             with actual type ‘BashCommand’
--- Couldn't match expected type ‘PossibleAssign’
---             with actual type ‘Var’
-
--- >>> PP.equals
--- =

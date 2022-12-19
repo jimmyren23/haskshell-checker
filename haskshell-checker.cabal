@@ -1,9 +1,9 @@
 cabal-version:  2.2
-name:           project-cis5520
+name:           haskshell-checker
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/project-cis5520#readme>
-homepage:       https://github.com/githubuser/project-cis5520#readme
-bug-reports:    https://github.com/githubuser/project-cis5520/issues
+description:    Please see the README on GitHub at <https://github.com/githubuser/haskshell-checker#readme>
+homepage:       https://github.com/githubuser/haskshell-checker#readme
+bug-reports:    https://github.com/githubuser/haskshell-checker/issues
 author:         Author name here
 maintainer:     example@example.com
 copyright:      2022 Author name here
@@ -16,7 +16,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/project-cis5520
+  location: https://github.com/githubuser/haskshell-checker
 
 common common-stanza
   ghc-options:         -Wno-type-defaults -fwarn-incomplete-patterns
@@ -97,7 +97,7 @@ library
       src
   default-language: Haskell2010
 
-executable project-cis5520-exe
+executable haskshell-checker-exe
   import:
       common-stanza
   main-is: 
@@ -106,10 +106,10 @@ executable project-cis5520-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      project-cis5520
+      haskshell-checker
 
 
-test-suite project-cis5520-test
+test-suite haskshell-checker-test
   import:
       common-stanza
   type: 
@@ -120,5 +120,5 @@ test-suite project-cis5520-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      project-cis5520
+      haskshell-checker
 

@@ -367,9 +367,6 @@ instance Arbitrary PrintfToken where
   shrink (Token s) = []
   shrink _ = []
 
--- >>> QC.sample' (arbitrary :: Gen PrintfToken)
--- [FormatA,FormatS,FormatB,FormatE,Token "p",FormatB,Token "{",FormatE,FormatX,FormatX,FormatA]
-
 {- Checker data types -}
 -- Datatype to differentiate between messages
 data Message = WarningMessage String | ErrorMessage String | None

@@ -1,7 +1,9 @@
 import Test.HUnit
 import Test.QuickCheck
+import CheckerHUnitTests (runShellTests)
 
 main :: IO ()
 main = do
-  putStrLn someFunc
-  putStrLn "Test suite not yet implemented"
+  putStrLn "Run unit tests:"
+  runShellTests
+  putStrLn "Done testing"

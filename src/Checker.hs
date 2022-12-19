@@ -46,13 +46,6 @@ checkUnquotedVar token history =
         else Right token
     _ -> Right token
 
--- | Checks if single quotes are closed by apostrophe
--- checkSingleQuoteApostrophe :: Arg -> Map Var BashCommand -> Either Message Arg
--- checkSingleQuoteApostrophe (SingleQuote tokens) history = case tokenListSearch tokens history of
---   Left err -> Left err
---   Right _ -> Right (SingleQuote tokens)
--- checkSingleQuoteApostrophe val _ = Right val
-
 -- | Checks if variables are used in single quotes
 checkVarInSingleQuotes :: ArgToken -> Either Message ArgToken
 checkVarInSingleQuotes t@(ArgS ts) =
@@ -80,7 +73,7 @@ checkVarInDoubleQuotes t@(ArgS ts) history cmd =
        in case Map.lookup var history of
             Nothing -> Left (WarningMessage ("Variable '" ++ possVar ++ "'" ++ " is not assigned"))
             Just (PossibleAssign pa) -> Left (WarningMessage ("Did you mean to assign variable " ++ possVar ++ " when you wrote: `" ++ pretty pa ++ "`? It was used later in: `" ++ pretty cmd ++ "`"))
-            Just assign@(Assign _ (Arr _)) -> Left (WarningMessage $ "Referencing arrays as strings in `" ++ pretty assign ++ "`")
+            Just assign@(Assign _ (Arr _)) -> Left (WarningMessage $ "Referencing arrays as strings in `" ++ pretty cmd ++ "`")
             Just _ -> Right t
 checkVarInDoubleQuotes t _ _ = Right t
 
@@ -94,17 +87,6 @@ checkArgDoubleQuotes tokens@(t : ts) history cmd =
           return (tt : tokenss)
 checkArgDoubleQuotes [] _ _ = Right []
 
--- >>> checkArg ([DoubleQuote [ArgS "$y"]]) Map.fromList [(V "y", (PossibleAssign (PossibleAssignWS (V "y") " " "=" "" (Val (IntVal 1)))))]  (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "$y"]])
--- Couldn't match expected type: BashCommand -> t
---             with actual type: Either Message [Arg]
--- Couldn't match expected type: Map Var BashCommand
---             with actual type: [(k0, a0)] -> Map k0 a0
--- Couldn't match expected type ‘BashCommand’
---             with actual type ‘[(Var, BashCommand)]’
-
--- >>> checkArgDoubleQuotes [ArgS "a", ArgS "b", ArgS "c"] Map.empty (Assign (V "a") (Val (StringVal "b")))
--- Right [ArgS "",ArgS "b",ArgS "c"]
-
 {- Conditionals [8] -}
 
 -- Warnings
@@ -113,15 +95,15 @@ checkArgDoubleQuotes [] _ _ = Right []
 checkConstantTestExpressions :: IfExpression -> Either Message IfExpression
 checkConstantTestExpressions exp =
   case exp of
-    IfOp2 (IfVal _) op (IfVal _) -> if op /= Reg then Left (WarningMessage $ "The expression `" ++ pretty exp ++ "` is constant") else Right exp
-    IfOp3 (IfVal _) op (IfVal _) -> if op /= Reg then Left (WarningMessage $ "The expression `" ++ pretty exp ++ "` is constant") else Right exp
+    IfOp2 (IfVal _) op (IfVal _) -> if op /= Reg then Left (WarningMessage $ "The expression " ++ pretty exp ++ " is constant") else Right exp
+    IfOp3 (IfVal _) op (IfVal _) -> if op /= Reg then Left (WarningMessage $ "The expression [" ++ pretty exp ++ "] is constant") else Right exp
     _ -> Right exp
 
 verifyRegStrings :: String -> IfExpression -> Either Message IfExpression
 verifyRegStrings s exp =
   case parse S.regex s of
     Left _ -> Right exp
-    Right _ -> Left (WarningMessage $ "Remove quotes in `" ++ pretty exp ++ "` to match as a regex instead of literally")
+    Right _ -> Left (WarningMessage $ "Remove quotes in [" ++ pretty exp ++ "] to match as a regex instead of literally")
 
 -- | Checks if regex is quoted in expression with =~
 checkQuotedRegex :: IfExpression -> Either Message IfExpression
@@ -167,8 +149,8 @@ checkLiteralVacuousTrue exp =
 checkUnsupportedOperators :: IfExpression -> Either Message IfExpression
 checkUnsupportedOperators exp =
   case exp of
-    IfOp2 _ Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported")
-    IfOp3 _ Err _ -> Left (ErrorMessage $ "Operator in `" ++ pretty exp ++ "` is not supported")
+    IfOp2 _ Err _ -> Left (ErrorMessage $ "Operator in [" ++ pretty exp ++ "] is not supported")
+    IfOp3 _ Err _ -> Left (ErrorMessage $ "Operator in [" ++ pretty exp ++ " is not supported")
     _ -> Right exp
 
 -- | Checks if unassigned variables are used
@@ -227,10 +209,6 @@ redirectArg _ = False
 
 hasRedirect :: [Arg] -> Bool
 hasRedirect = Prelude.foldr ((||) . redirectArg) False
-
--- -- | Checks if aliases are defined with arguments
--- checkArgumentsInAliases :: BashCommand -> Either String BashCommand
--- checkArgumentsInAliases = undefined
 
 -- | Checks if redirections are in find
 checkRedirectionInFind :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
@@ -297,14 +275,6 @@ checkNoVarInArithemetic (ExecCommand cmd@(ExecName cmdName) args) _ = case mapM 
   Right args' -> Right (ExecCommand cmd args')
 checkNoVarInArithemetic cmd _ = Right cmd
 
--- | Checks if echo is unnecessarily used
--- checkEchoUsage :: BashCommand -> Either String BashCommand
--- checkEchoUsage = undefined
-
--- | Checks if cat is unnecessarily used
--- checkCatUsage :: BashCommand -> Either String BashCommand
--- checkCatUsage = undefined
-
 {- Data and typing errors [6] -}
 
 -- Warnings
@@ -339,13 +309,6 @@ checkUnusedVar (ExecCommand cmd@(ExecName cmdName) args) history varFreq = case 
   Right args' -> Right (ExecCommand cmd args')
 checkUnusedVar cmd _ _ = Right cmd
 
--- >>> checkUnassignedVar (ExecCommand (ExecName "echo") ["$x"]) Map.empty
--- Left "Error: x is not assigned"
-
--- -- # Assignments in subshells
--- checkAssignmentInSubshell :: BashCommand -> Either String Command
--- checkAssignmentInSubshell = undefined
-
 -- | Checks if commands that don't read are being piped
 checkPipingRead :: BashCommand -> Either String BashCommand
 checkPipingRead = undefined
@@ -363,16 +326,6 @@ hasCorrectNumberPrintfArgs (x : xs) = case x of
 checkPrintArgCount :: BashCommand -> Map Var BashCommand -> Either Message BashCommand
 checkPrintArgCount fullCmd@(ExecCommand cmd@(ExecName cmdName) args) _ = if hasCorrectNumberPrintfArgs args then Right (ExecCommand cmd args) else Left (WarningMessage $ pretty cmdName ++ " in `" ++ pretty fullCmd ++ "` has incorrect number of arguments")
 checkPrintArgCount cmd _ = Right cmd
-
---- >>> checkPrintArgCount (ExecCommand (ExecName "printf") [SingleQuote [ArgS "%s:",ArgS "%s\\n"]]) Map.empty
--- Right (ExecCommand (ExecName "printf") [SingleQuote [ArgS "%s:",ArgS "%s\\n"]])
-
--- | Checks if word boundaries are lost in array eval
-checkArrayEval :: BashCommand -> Either String BashCommand
-checkArrayEval = undefined -- [@] -> treats each element as a separate command by default
-
-checkArrayValueUsedAsKey :: BashCommand -> Either String BashCommand
-checkArrayValueUsedAsKey = undefined
 
 {- Robustness -}
 

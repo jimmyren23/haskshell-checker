@@ -2,202 +2,153 @@ module CheckerHUnitTests where
 
 import Checker
 import Test.HUnit (Assertion, Counts, Test (..), assert, runTestTT, (~:), (~?=))
-
--- TODO: Decide on error messages (use the same as Shell Check or no?)
+import Parsing ( parse )
+import ShellParsing ( bashCommandP, execCommandP )
+import ShellSyntax
+import qualified Data.Map as Map
 
 test_quoting =
-  "quoting"
-    ~: TestList
-      [ checkUnquotedVar
-          Var
-          "$1"
-          ~= Left
-            "Info: Double quoting to interpolate variable"
-            checkUnquotedVar
-            Var
-            "\"$1\""
-          ~= Right
-            Var
-            "$1"
-            checkQuotedTildeExpansion
-            "\"~/5520 file.txt\""
-          ~= Left
-            "Warning: Tilde does not expand inside quotes."
-            checkQuotedTildeExpansion
-            "~/5520 file.txt"
-          ~= Right
-            "rm ~/5520 file.txt"
-            checkSingleQuoteApostrophe
-            "\'it's not right\'"
-          ~= Left
-            "Error: Cannot parse the string, apostrophe is terminating the single quoted string."
-            checkSingleQuoteApostrophe
-            "\'it'\''s a string\'"
-          ~= Right
-            "\'it'\''s a string\'"
-            checkEscapeQuote
-            "\'it\'s a string\'"
-          ~= Left
-            "Error:  Cannot parse the string, escaping apostrophe is not done properly."
-            checkVarInSingleQuotes
-            "\'$1\'"
-          ~= Left "Info: Expressions do not expand inside single quotes."
-      ]
+  "quoting_checkers"
+  ~: TestList
+    [
+      checkQuotedTildeExpansionTokens (ArgM Tilde)
+        ~?= Left (WarningMessage "Tilde expansion can't be used in strings"),
+      checkQuotedTildeExpansionTokens (ArgS "no")
+        ~?= Right (ArgS "no"),
+      checkUnquotedVar (Arg "$var") (Map.fromList [(V "var", Assign (V "var") (Val (IntVal 1)))])
+        ~?= Left (WarningMessage "Variable $var that was previously used is not quoted"),
+      checkUnquotedVar (Arg "var") (Map.fromList [(V "var", Assign (V "var") (Val (IntVal 1)))])
+        ~?= Right (Arg "var"),
+      checkVarInSingleQuotes (ArgS "$var")
+        ~?= Left (WarningMessage "Variables cannot be used inside single quotes"),
+      checkVarInSingleQuotes (ArgS "var")
+        ~?= Right (ArgS "var"),
+      checkVarInDoubleQuotes (ArgS "$var") (Map.fromList [(V "var", PossibleAssign (PossibleAssignWS (V "var") " " "=" " " (Val (IntVal 1))))]) (Assign (V "var") (Val (IntVal 1)))
+        ~?= Left (WarningMessage "Did you mean to assign variable var when you wrote: `$var = 1`? It was used later in: `$var=1`"),
+      checkVarInDoubleQuotes (ArgS "$var") Map.empty (Assign (V "var") (Val (IntVal 1)))
+        ~?= Left (WarningMessage "Variable 'var' is not assigned"),
+      checkVarInDoubleQuotes (ArgS "$var")  (Map.fromList [(V "var", Assign (V "var") (Arr "hi"))]) (ExecCommand (ExecName "echo") [Arg "$var"])
+        ~?= Left (WarningMessage "Referencing arrays as strings in `$var=(hi)`")
+    ]
 
-test_conditional =
-  "conditional"
-    ~: TestList
-      [ checkMissingSpaces Right Expression "if [\"$foo\"==0]\n"
-          ~= Left
-            "Error: Missing spaces around comparison operator."
-            -- TODO: Decide on how to store conditionals (when to split up conditions & blocks)
-            checkMissingSpaces
-            Right
-            Expression
-            "if [\"$foo\" == 0]\n"
-          ~= Right
-            Expression
-            "if [\"$foo\" == 0]\n"
-            checkLiteralVacuousTrue
-            Right
-            Expression
-            "if [-n \"$foo \"]\n"
-          ~= Left
-            "Warning: Condition always evaluates to true."
-            checkLiteralVacuousTrue
-            Right
-            Expression
-            "if [-n \"$foo\"]\n"
-          ~= Right
-            Expression
-            "if [-n \"$foo\"]\n"
-            checkQuotedRegex
-            Right
-            Expression
-            "if [[ $foo =~ "
-            fo
-          + " ]]"
-          ~= Left
-            "Warning: Regex is quoted"
-            checkQuotedRegex
-            Right
-            Expression
-            "if [$1 -eq \"hi\"]\n"
-          ~= Left
-            "Error: Invalid use of -eq, use = to compare strings."
-            checkAnd
-            Right
-            Expression
-            "if [$a && $b]"
-          ~= Left
-            "Error: && inside ((..)), use [..] && [..] instead."
-            checkTestOperators
-            Right
-            Expression
-            "if [ ((2 -gt 1)) ]"
-          ~= Left
-            "Error: Test oprators are not valid inside ((..))."
-            checkBackgroundingAndPiping
-            Right
-            Expression
-            "if [ [ x ] & [ y ] | [ z ] ]"
-          ~= Left
-            "Error: Unintended use of backgrounding and piping."
-      ]
+test_conditionals =
+  "conditional_checkers"
+  ~: TestList
+  [
+    checkConstantTestExpressions (IfOp2 (IfVal (StringVal "hi")) GtIf (IfVal (IntVal 1)))
+      ~?= Left (WarningMessage "The expression `'hi' > 1` is constant"),
+    checkConstantTestExpressions (IfOp2 (IfVar (V "var")) GtIf (IfVal (IntVal 1)))
+      ~?= Right (IfOp2 (IfVar (V "var")) GtIf (IfVal (IntVal 1))),
+    checkQuotedRegex (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "a+")))
+      ~?= Left (WarningMessage "Remove quotes in `'hi' =~ 'a+'` to match as a regex instead of literally"),
+    checkQuotedRegex (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "a*c")))
+      ~?= Left (WarningMessage "Remove quotes in `'hi' =~ 'a*c'` to match as a regex instead of literally"),
+    checkQuotedRegex (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "aa")))
+      ~?= Right (IfOp2 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "aa"))),
+    checkTestOperators (IfOp3 (IfVal (StringVal "hi")) GtIf (IfVal (StringVal "aa")))
+      ~?= Left (WarningMessage "Test operators like > can't be used in arithmetic contexts"),
+    checkTestOperators (IfOp3 (IfVal (StringVal "hi")) Reg (IfVal (StringVal "aa")))
+      ~?= Left (WarningMessage "Test operators like =~ can't be used in arithmetic contexts"),
+    checkTestOperators (IfOp3 (IfVal (IntVal 7)) PlusIf (IfVal (IntVal 7)))
+      ~?= Right (IfOp3 (IfVal (IntVal 7)) PlusIf (IfVal (IntVal 7))),
+    checkTestOperators (IfOp3 (IfVal (IntVal 7)) ModuloIf (IfVal (IntVal 7)))
+      ~?= Right (IfOp3 (IfVal (IntVal 7)) ModuloIf (IfVal (IntVal 7))),
+    checkNumericalCompStrInExp (IfOp2 (IfVal (StringVal "hi")) GtNIf (IfVal (IntVal 7)))
+      ~?= Left (ErrorMessage "-gt is for numerical comparisons"),
+    checkTestOperators (IfOp2 (IfVal (IntVal 7)) GtNIf (IfVal (IntVal 7)))
+      ~?= Right (IfOp2 (IfVal (IntVal 7)) GtNIf (IfVal (IntVal 7))),
+    checkAndInExp (IfOp2 (IfVal (IntVal 7)) AndIf (IfVal (IntVal 7)))
+      ~?= Left (ErrorMessage "&& cannot be used inside [...] or [[...]]"),
+    checkAndInExp (IfOp2 (IfVal (IntVal 7)) PlusIf (IfVal (IntVal 7)))
+      ~?= Right (IfOp2 (IfVal (IntVal 7)) PlusIf (IfVal (IntVal 7))),
+    checkLiteralVacuousTrue (IfOp1 LengthNonZero (IfVal (StringVal "")))
+      ~?= Left (ErrorMessage "Argument to -n is always true"),
+    checkLiteralVacuousTrue (IfOp1 LengthNonZero (IfVar (V "var")))
+      ~?= Right (IfOp1 LengthNonZero (IfVar (V "var"))),
+    checkUnsupportedOperators (IfOp2 (IfVal (IntVal 7)) Err (IfVal (IntVal 7)))
+      ~?= Left (ErrorMessage "Operator in `7 <op> 7` is not supported"),
+    checkVarInExp (IfOp1 LengthNonZero (IfVar (V "var"))) (Map.fromList [(V "var", PossibleAssign (PossibleAssignWS (V "var") " " "=" " " (Val (IntVal 1))))]) (IfOp1 LengthNonZero (IfVar (V "var")))
+      ~?= Left (WarningMessage "Did you mean to assign variable $var when you wrote:`$var = 1`? It was used later in: `-n $var`"),
+    checkVarInExp (IfOp1 LengthNonZero (IfVar (V "var"))) (Map.fromList [(V "var", Assign (V "var") (Val (IntVal 1)))]) (IfOp1 LengthNonZero (IfVar (V "var")))
+    ~?= Right (IfOp1 LengthNonZero (IfVar (V "var"))),
+    checkVarInExp (IfOp1 LengthNonZero (IfVar (V "var"))) Map.empty (IfOp1 LengthNonZero (IfVar (V "var")))
+    ~?= Left (WarningMessage "Variable 'var' is not assigned")
+  ]
 
 test_freq_misused =
-  "freq_misused"
-    ~: TestList
-      [ checkRedirectInSudo Right ExecCommand "sudo echo \"hello\" > file.txt"
-          ~= Left
-            "Error: Redirecting sudo.",
-        checkArgumentsInAliases Right ExecCommand "alias ls='ls -l'"
-          ~= Left
-            "Error: Arguments in aliases.",
-        checkRedirectionInFind Right ExecCommand "find . -name \"*.txt\" > file.txt"
-          ~= Left
-            "Error: Redirecting find."
-      ]
+  "frequently misused commands tests"
+  ~: TestList
+  [
+    checkRedirectInSudo (ExecCommand (ExecName "sudo") [Arg ">"]) Map.empty
+      ~?= Left (WarningMessage "sudo is being redirected"),
+    checkRedirectInSudo (ExecCommand (ExecName "sudo") [Arg "hi"]) Map.empty
+      ~?= Right (ExecCommand (ExecName "sudo") [Arg "hi"]),
+    checkRedirectionInFind (ExecCommand (ExecName "find") [Arg ">>"]) Map.empty
+      ~?= Left (WarningMessage "Redirections is being used on find command"),
+    checkRedirectionInFind (ExecCommand (ExecName "find") [Arg "file.txt"]) Map.empty
+    ~?= Right (ExecCommand (ExecName "find") [Arg "file.txt"])
+  ]
 
 test_beginner_mistakes =
-  "beginner_mistakes"
-    ~: TestList
-      [ checkSpacesInAssignments Right ExecCommand "foo = bar"
-          ~= Left
-            "Error: Spaces around equal-to operator, remove spaces.",
-        checkDollarSignInAssignments Right ExecCommand "$foo = bar"
-          ~= Left
-            "Error: Variable in assignment, remove $.",
-        checkCommaSeparatedArrays Right ExecCommand "foo=(bar, baz)"
-          ~= Left
-            "Error: Comma-separated arrays, use space-separated arrays.",
-        checkElseIf Right ExecCommand "if [\"$foo\" == 0]\nthen echo \"true\"\nelse if [\"$foo\" == 1]\nthen echo \"false\"\nfi"
-          ~= Left
-            "Error: Use elif instead of else if",
-        checkSingleFalse Right ExecCommand "if [ false ]\nthen echo \"true\"\n"
-          ~= Left
-            "Warning: The [ false ] is actually interpreted as true.",
-        checkParenthesisInsteadOfTest Right ExecCommand "if ( -f file ) \nthen echo \"true\"\n"
-          ~= Left
-            "Error: Use test instead of ( )."
-      ]
+  "beginner mistakes tests"
+  ~: TestList
+  [
+    checkCommaSeparatedArrays (Arr "1,2,3")
+      ~?= Left (WarningMessage "Use spaces to separate array elements"),
+    checkCommaSeparatedArrays (Arr "1,2  ,3  ")
+      ~?= Left (WarningMessage "Use spaces to separate array elements")
+  ]
 
 test_style =
-  "style"
-    ~: TestList
-      [ checkCommandSubstitution Right ExecCommand "echo `date`"
-          ~= Left
-            "Warning: Instead of backticks, use $().",
-        checkArithmeticParentheses Right ExecCommand "echo $[ 1 + 1 ]"
-          ~= Left
-            "Warning: Instead of $[...], use the new standard $((...)).",
-        checkNoVarInArithemetic Right ExecCommand "echo $((NUM + 1))"
-          ~= Left
-            "Error: Use $[] instead of $().",
-        checkEchoUsage Right ExecCommand "echo \"$(date)\""
-          ~= Left
-            "Warning: usage of echo here is unnecessary.",
-        checkCatUsage Right ExecCommand "cat fileName | grep bar"
-          ~= Left
-            "Warning: usage of cat here is unnecessary."
-      ]
+  "style tests"
+  ~: TestList
+  [
+    unstylisticInterpolation (SingleQuote [ArgS "`hi`"])
+      ~?= Left (WarningMessage "Backticks are being used, which has been deprecated - use $() instead"),
+    unstylisticInterpolation (SingleQuote [ArgS "$(hi)"])
+      ~?= Right (SingleQuote [ArgS "$(hi)"]),
+    oldArithExpansionArg (Arg "$[sdf]")
+      ~?= Left (WarningMessage "Old arithmetic expansion is being used in $[sdf] - use $((..)) instead"),
+    oldArithExpansionArg (Arg "$((2+3)))")
+      ~?= Right (Arg "$((2+3)))"),
+    argArithmeticExpansion (Arg "$(( $v ))")
+      ~?= Left (WarningMessage "$ is being used in $(( $v )) - don't use $ on variables in $((..))"),
+    argArithmeticExpansion (Arg "$(( 1 ))")
+  ~?= Right (Arg "$(( 1 ))")
+  ]
 
-test_data_type =
-  "data and type errors"
-    ~: TestList
-      [ checkArrayReferenceInString Right ExecCommand "foo=(bar baz); echo $foo"
-          ~= Left
-            "Error: Try to use an array as a string.",
-        checkStringArrayConcatenation Right ExecCommand "foo=(bar baz); z=\"hi\"; y=z+foo"
-          ~= Left
-            "Warning: Trying to concatenate an array with a string.",
-        checkStringNumericalComparison Right ExecCommand "if [\"$foo\" -eq 0]\nthen echo \"true\"\n"
-          ~= Left
-            "Error: Trying to compare a string with a number.",
-        checkUnusedVar Right ExecCommand "foo=bar; echo \"hi\" foo"
-          ~= Left
-            "Warning: Unused variable referred to in command.",
-        checkUnassignedVar Right ExecCommand "echo $foo"
-          ~= Left
-            "Error: Unassigned variable referred to in command.",
-        checkPipingRead Right ExecCommand "cat file.txt | echo \"hi\""
-          ~= Left
-            "Error: Piping into a command that does not intake input.",
-        checkPrintArgCount Right ExecCommand "printf \'%s: %s\' foo"
-          ~= Left
-            "Error: An inccorect number of arguments were given to the command."
-            checkArrayEval
-            Right
-            ExecCommand
-            "eval \"${array[@]}\""
-          ~= Left
-            "Error: Word boundaries lost when attempting to read array."
-      ]
+test_data_typing =
+  "data and typing error tests"
+  ~: TestList
+  [
+    checkPrintArgCount (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "%s"]]) Map.empty
+      ~?= Left (WarningMessage "printf in `printf \"%s\"` has incorrect number of arguments"),
+    checkPrintArgCount (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "%s"], Arg "hi"]) Map.empty
+      ~?= Right (ExecCommand (ExecName "printf") [DoubleQuote [ArgS "%s"], Arg "hi"])
+  ]
 
-test_robustness =
-  "robustness"
-    ~: TestList
-      [ checkNoVariablesInPrintf Right ExecCommand "printf $myvar"
-          ~= Left
-            "Error: No variables should be used in printf."
-      ]
+{- Miscellaneous -}
+test_miscellaneous =
+  "miscellaneous tests"
+   ~: TestList
+  [
+    checkVariableAssignedToItself "var" (Var (V "var"))
+      ~?= Left (WarningMessage "variable var is assigned to itself - this does not do anything"),
+    checkVariableAssignedToItself "var" (Var (V "v2"))
+      ~?= Right (Var (V "v2"))
+  ]
+
+shellTests :: Test
+shellTests =
+  TestList [
+    test_quoting,
+    test_beginner_mistakes,
+    test_conditionals,
+    test_data_typing,
+    test_freq_misused,
+    test_style,
+    test_miscellaneous
+  ]
+
+runShellTests :: IO Counts
+runShellTests = runTestTT shellTests
