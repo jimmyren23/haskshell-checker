@@ -162,6 +162,11 @@ errP rtrnVal = wsP (many (satisfy (/= ' '))) *> pure rtrnVal
 -- >>> parse (errP ErrU) "-as"
 -- Right ErrU
 
+untilNewline :: Parser String
+untilNewline = many (satisfy (/= '\n')) <* newline <* many get
+
+-- >>> parse untilNewline "if sjallk\n ajslkdlf"
+
 eof :: Parser ()
 eof = P $ \s -> case s of
   [] -> Right ((), [])
@@ -169,25 +174,11 @@ eof = P $ \s -> case s of
     sn <- parse untilNewline x
     Left ("\t<PARSING ERROR> Please check line: `" ++ sn ++ "`.")
 
-untilNewline :: Parser String
-untilNewline = many (satisfy (/= '\n')) <* newline <* many get
-
 -- >>> parse untilNewline "if sjallk\n ajslkdlf"
 -- Right "if sjallk"
 
 -- >>> parse bashCommandP "echo \"hi\""
 -- Variable not in scope: bashCommandP :: Parser a
-
-try1 :: FilePath -> IO String
-try1 filename = do
-  handle <- IO.openFile filename IO.ReadMode
-  IO.hGetContents handle
-
--- >>> parse (many get <* (string "\n") <* many get) "if \n"
--- Left "err"
-
--- >>> try1 "test/conditional.txt"
--- "echo hi\ny=1\nif [ $y > \"hi\" ]\nthen\n  echo $x\nelse\n  echo \"hi\"\nfi\n"
 
 {- File parsers -}
 
